@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { getPickerOrders, setItemPicked, setOrderStatus } from "./api";
+import { getPickerOrders, setOrderStatus } from "./api";
 
 const REFRESH_MS = Number(import.meta.env.VITE_REFRESH_MS || "10000");
 
@@ -7,23 +7,18 @@ export function useOrders() {
   return useQuery({
     queryKey: ["pickerOrders"],
     queryFn: getPickerOrders,
-    refetchInterval: REFRESH_MS,
-    refetchOnReconnect: true,
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
 }
+
 
 export function useSetOrderStatus() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ orderId, status }) => setOrderStatus(orderId, status),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["pickerOrders"] }),
-  });
-}
-
-export function useSetItemPicked() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ orderItemId, picked }) => setItemPicked(orderItemId, picked),
+    mutationFn: ({ orderId, status, pickerNote }) =>
+      setOrderStatus(orderId, status, pickerNote),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["pickerOrders"] }),
   });
 }

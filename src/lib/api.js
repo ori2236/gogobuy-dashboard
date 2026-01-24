@@ -3,16 +3,45 @@ const SHOP_ID = Number(import.meta.env.VITE_SHOP_ID || "1");
 
 async function fetchJSON(path, init) {
   const url = API_BASE ? new URL(path, API_BASE).toString() : path;
+
   const res = await fetch(url, {
     headers: { "Content-Type": "application/json", ...(init?.headers || {}) },
     ...init,
   });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(text || `HTTP ${res.status}`);
+
+  const ct = res.headers.get("content-type") || "";
+  const raw = await res.text().catch(() => "");
+
+  // success
+  if (res.ok) {
+    if (ct.includes("application/json")) return raw ? JSON.parse(raw) : {};
+    return raw;
   }
-  return res.json();
+
+  // error message
+  let msg = "";
+  if (ct.includes("application/json")) {
+    try {
+      const j = raw ? JSON.parse(raw) : {};
+      msg = j.message || j.error || j.msg || "";
+    } catch {}
+  }
+
+  const looksLikeHtml =
+    raw.trim().startsWith("<!DOCTYPE") || raw.includes("<html");
+  if (!msg) {
+    msg = looksLikeHtml
+      ? "הנתיב לא קיים / אין Proxy לשרת. בדוק שהדשבורד מדבר עם פורט 3000 ושיש Route מתאים."
+      : (raw || `HTTP ${res.status}`).slice(0, 300);
+  }
+
+  const err = new Error(msg);
+  err.status = res.status;
+  err.url = url;
+  err.details = raw;
+  throw err;
 }
+
 
 function toBool(v, fallback = false) {
   if (typeof v === "boolean") return v;
@@ -23,13 +52,20 @@ function toBool(v, fallback = false) {
 }
 
 function normalizeItem(raw) {
+  const soldByWeight = toBool(raw.sold_by_weight ?? raw.soldByWeight, false);
+
+  const unit =
+    raw.unit ?? raw.units ?? raw.unit_label ?? (soldByWeight ? 'ק"ג' : "יח'");
+
   return {
     id: Number(raw.id ?? raw.order_item_id ?? raw.orderItemId),
     name: String(
       raw.name ?? raw.product_name ?? raw.label ?? raw.title ?? "מוצר",
     ),
     amount: Number(raw.amount ?? raw.qty ?? raw.quantity ?? 1),
-    unit: raw.unit ?? raw.units ?? raw.unit_label ?? null,
+    unit,
+    sold_by_weight: soldByWeight,
+    requested_units: raw.requested_units ?? raw.requestedUnits ?? null,
     picked: toBool(
       raw.picked ?? raw.is_picked ?? raw.isPicked ?? raw.picked_up,
       false,
@@ -63,27 +99,21 @@ export async function getPickerOrders() {
   return Array.isArray(rawOrders) ? rawOrders.map(normalizeOrder) : [];
 }
 
-export async function setOrderStatus(orderId, status) {
+export async function setOrderStatus(orderId, status, pickerNote) {
+  const body = { status };
+  if (pickerNote) body.picker_note = pickerNote;
+
   const res = await fetchJSON(
     `/api/dashboard/picker/orders/${orderId}/status`,
     {
       method: "PATCH",
-      body: JSON.stringify({ status }),
+      body: JSON.stringify(body),
     },
   );
-  return normalizeOrder(res.order ?? res.data ?? res);
+
+  return res;
 }
 
-export async function setItemPicked(orderItemId, picked) {
-  const res = await fetchJSON(
-    `/api/dashboard/picker/order-items/${orderItemId}`,
-    {
-      method: "PATCH",
-      body: JSON.stringify({ picked }),
-    },
-  );
-  return normalizeItem(res.item ?? res.data ?? res);
-}
 
 export function getShopId() {
   return SHOP_ID;

@@ -12,10 +12,10 @@ export function formatDateTime(iso) {
   }).format(d);
 }
 
-export function formatQty(amount, unit) {
-  if (!Number.isFinite(amount)) return "";
-  const s = Number.isInteger(amount)
-    ? String(amount)
-    : String(Number(amount.toFixed(2)).toString());
+export function formatQty(n, unit) {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return "";
+
+  const s = x.toFixed(3).replace(/\.?0+$/, "");
   return unit ? `${s} ${unit}` : s;
 }

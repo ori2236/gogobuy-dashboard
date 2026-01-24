@@ -8,11 +8,32 @@
 
 @layer components {
   .card { @apply bg-white rounded-2xl shadow-md border border-slate-100; }
-  .btn { @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed; }
-  .btn-primary { @apply btn bg-slate-900 text-white hover:bg-slate-800 active:bg-slate-950; }
-  .btn-secondary { @apply btn bg-slate-100 text-slate-900 hover:bg-slate-200 active:bg-slate-300; }
-  .btn-success { @apply btn bg-emerald-600 text-white hover:bg-emerald-700 active:bg-emerald-800; }
-  .btn-outline { @apply btn border border-slate-200 bg-white hover:bg-slate-50 active:bg-slate-100; }
+
+  /* Base button utilities - משוכפל בכל וריאנט כדי להימנע מ-@apply על .btn */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition
+      disabled:opacity-50 disabled:cursor-not-allowed
+      bg-slate-900 text-white hover:bg-slate-800 active:bg-slate-950;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition
+      disabled:opacity-50 disabled:cursor-not-allowed
+      bg-slate-100 text-slate-900 hover:bg-slate-200 active:bg-slate-300;
+  }
+
+  .btn-success {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition
+      disabled:opacity-50 disabled:cursor-not-allowed
+      bg-emerald-600 text-white hover:bg-emerald-700 active:bg-emerald-800;
+  }
+
+  .btn-outline {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition
+      disabled:opacity-50 disabled:cursor-not-allowed
+      border border-slate-200 bg-white hover:bg-slate-50 active:bg-slate-100;
+  }
+
   .pill { @apply inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold; }
   .kbd { @apply rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-semibold; }
 }

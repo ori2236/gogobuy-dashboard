@@ -11,9 +11,20 @@ export function TopBar({ confirmedCount, preparingCount, onRefresh, isRefreshing
             <Store className="h-5 w-5" />
           </div>
           <div>
-            <div className="text-lg font-extrabold leading-tight">Pick & Pack</div>
+            <div className="text-lg font-extrabold leading-tight">
+  Pick & Pack <span className="text-slate-400 font-semibold">•</span>{" "}
+  <a
+    href="https://gogobuy.ai"
+    target="_blank"
+    rel="noreferrer"
+    className="text-slate-700 hover:text-slate-900 underline underline-offset-4 decoration-slate-200"
+  >
+    gogobuy.ai
+  </a>
+</div>
+
             <div className="text-sm text-slate-600">
-              חנות <span className="font-semibold">#{shopId}</span> • הזמנות confirmed / preparing
+              חנות <span className="font-semibold">#{shopId}</span> • הזמנות מאושרות
             </div>
           </div>
         </div>
