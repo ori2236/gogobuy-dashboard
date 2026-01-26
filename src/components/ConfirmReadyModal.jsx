@@ -8,6 +8,7 @@ export function ConfirmReadyModal({
   busy,
   onCancel,
   onConfirm,
+  onChangeNote,
 }) {
   if (!open || !order) return null;
 
@@ -15,8 +16,8 @@ export function ConfirmReadyModal({
   const phone = (order.customer_phone || "").trim();
   const showName = Boolean(name) && name !== phone;
 
-  const noteTxt = (note || "").trim();
-  const showNote = Boolean(noteTxt);
+  const items = order.items || [];
+  const scrollItems = items.length > 4;
 
   return (
     <div
@@ -42,7 +43,6 @@ export function ConfirmReadyModal({
           </div>
 
           <div className="mt-5 rounded-2xl border border-slate-100 bg-slate-50 p-4">
-            {/* שורה אחת: מספר הזמנה בשמאל, שאר הפרטים בימין */}
             <div className="flex items-center justify-between gap-3" dir="ltr">
               <div className="text-sm font-extrabold text-slate-900">
                 הזמנה #{order.id}
@@ -71,17 +71,24 @@ export function ConfirmReadyModal({
             </div>
 
             <div
-              className="mt-4 rounded-2xl border border-slate-100 bg-slate-50/60"
+              className={cn(
+                "mt-4 rounded-2xl border border-slate-100 bg-slate-50/60",
+                scrollItems && "max-h-[240px] overflow-y-auto pe-1",
+              )}
               dir="rtl"
             >
               <div className="mt-3 grid gap-2">
-                {(order.items || []).map((it) => (
+                {items.map((it) => (
                   <div
                     key={it.id}
-                    className="flex items-center justify-end gap-3 rounded-2xl border border-slate-100 bg-white p-4 px-3 py-3"
+                    className="flex items-center justify-end gap-3 rounded-2xl border border-slate-100 bg-white px-3 py-3"
                   >
                     <div className="whitespace-nowrap text-sm font-extrabold text-slate-800">
-                      <span>{String(it.amount).replace(/\.?0+$/, "")}</span>
+                      <span>
+                        {Number(it.amount)
+                          .toFixed(3)
+                          .replace(/\.?0+$/, "")}
+                      </span>
                       {it.unit ? (
                         <span className="ms-1 text-xs font-bold text-slate-500">
                           {it.unit}
@@ -97,19 +104,23 @@ export function ConfirmReadyModal({
               </div>
             </div>
 
-            {showNote ? (
-              <div
-                className="mt-4 rounded-2xl border border-slate-100 bg-white p-4 text-right"
-                dir="rtl"
-              >
-                <div className="text-xs font-bold text-slate-700">
-                  הערת מלקט ללקוח
-                </div>
-                <div className="mt-2 text-sm text-slate-700 whitespace-pre-wrap">
-                  {noteTxt}
-                </div>
+            <div
+              className="mt-4 rounded-2xl border border-slate-100 text-right"
+              dir="rtl"
+            >
+              <div className="text-xs font-bold text-slate-700">
+                הערת מלקט ללקוח (אופציונלי)
               </div>
-            ) : null}
+
+              <textarea
+                className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:border-slate-900 text-right"
+                rows={2}
+                value={note || ""}
+                onChange={(e) => onChangeNote?.(e.target.value)}
+                placeholder="לדוגמה: שמתי את המוצרים בקירור בשקית נפרדת"
+                disabled={busy}
+              />
+            </div>
           </div>
 
           <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">

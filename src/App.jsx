@@ -6,28 +6,22 @@ import { SkeletonCard } from "./components/Skeleton";
 import { Toast } from "./components/Toast";
 import { ConfirmReadyModal } from "./components/ConfirmReadyModal";
 
-function sortOrders(orders) {
-  const rank = (s) =>
-    s === "preparing"
-      ? 0
-      : s === "confirmed"
-        ? 1
-        : s === "ready"
-          ? 2
-          : s === "completed"
-            ? 3
-            : 9;
+function sortOrders(orders, mode) {
+  const time = (o) => (o.created_at ? new Date(o.created_at).getTime() : 0);
 
-  return [...orders].sort((a, b) => {
-    const r = rank(a.status) - rank(b.status);
-    if (r !== 0) return r;
+  const byNewest = (a, b) => time(b) - time(a);
 
-    const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
-    const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
-    if (ta !== tb) return ta - tb;
+  if (mode === "pending") {
+    const rank = (s) => (s === "preparing" ? 0 : s === "confirmed" ? 1 : 2);
 
-    return (a.id ?? 0) - (b.id ?? 0);
-  });
+    return [...orders].sort((a, b) => {
+      const r = rank(a.status) - rank(b.status);
+      if (r !== 0) return r;
+      return byNewest(a, b);
+    });
+  }
+
+  return [...orders].sort(byNewest);
 }
 
 function loadPickedMap() {
@@ -72,7 +66,7 @@ export default function App() {
   const notify = (kind, message) => setToast({ kind, message });
 
   const normalized = useMemo(() => {
-    const list = sortOrders(orders ?? []);
+    const list = orders ?? [];
     return list.map((o) => {
       const perOrder = pickedMap[o.id] || {};
       return {
@@ -98,15 +92,27 @@ export default function App() {
 
   const visibleOrders = useMemo(() => {
     if (activeTab === "stock") return [];
-    if (activeTab === "pending")
-      return normalized.filter(
+
+    let base = normalized;
+
+    if (activeTab === "pending") {
+      base = normalized.filter(
         (o) => o.status === "confirmed" || o.status === "preparing",
       );
-    if (activeTab === "ready")
-      return normalized.filter((o) => o.status === "ready");
-    if (activeTab === "completed")
-      return normalized.filter((o) => o.status === "completed");
-    return normalized;
+      return sortOrders(base, "pending");
+    }
+
+    if (activeTab === "ready") {
+      base = normalized.filter((o) => o.status === "ready");
+      return sortOrders(base, "ready");
+    }
+
+    if (activeTab === "completed") {
+      base = normalized.filter((o) => o.status === "completed");
+      return sortOrders(base, "completed");
+    }
+
+    return base;
   }, [normalized, activeTab]);
 
   const busyOrderId = setStatus.isPending
@@ -154,7 +160,6 @@ export default function App() {
         return next;
       });
 
-      // אופציונלי: לנקות noteMap אחרי שההערה נשמרה ב־DB
       setNoteMap((prev) => {
         const next = { ...prev };
         delete next[order.id];
@@ -297,6 +302,19 @@ export default function App() {
         busy={Boolean(busyOrderId)}
         onCancel={() => setConfirm({ open: false, order: null })}
         onConfirm={confirmMarkReady}
+        onChangeNote={(txt) => {
+          const id = confirm.order?.id;
+          if (!id) return;
+          setConfirm((prev) => ({
+            ...prev,
+            order: prev.order ? { ...prev.order, __note: txt } : prev.order,
+          }));
+          setNoteMap((prev) => {
+            const next = { ...prev, [id]: txt };
+            saveNoteMap(next);
+            return next;
+          });
+        }}
       />
     </div>
   );
