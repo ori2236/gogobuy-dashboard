@@ -12,13 +12,11 @@ async function fetchJSON(path, init) {
   const ct = res.headers.get("content-type") || "";
   const raw = await res.text().catch(() => "");
 
-  // success
   if (res.ok) {
     if (ct.includes("application/json")) return raw ? JSON.parse(raw) : {};
     return raw;
   }
 
-  // error message
   let msg = "";
   if (ct.includes("application/json")) {
     try {
@@ -42,7 +40,6 @@ async function fetchJSON(path, init) {
   throw err;
 }
 
-
 function toBool(v, fallback = false) {
   if (typeof v === "boolean") return v;
   if (typeof v === "number") return v !== 0;
@@ -53,7 +50,6 @@ function toBool(v, fallback = false) {
 
 function normalizeItem(raw) {
   const soldByWeight = toBool(raw.sold_by_weight ?? raw.soldByWeight, false);
-
   const unit =
     raw.unit ?? raw.units ?? raw.unit_label ?? (soldByWeight ? 'ק"ג' : "יח'");
 
@@ -82,6 +78,7 @@ function normalizeOrder(raw) {
     shop_id: Number(raw.shop_id ?? raw.shopId ?? SHOP_ID),
     status: raw.status ?? "confirmed",
     created_at: raw.created_at ?? raw.createdAt,
+    picker_note: raw.picker_note ?? raw.pickerNote ?? null,
     customer_name: raw.customer_name ?? raw.customerName ?? raw.name ?? null,
     customer_phone:
       raw.customer_phone ?? raw.customerPhone ?? raw.phone ?? null,
@@ -91,29 +88,29 @@ function normalizeOrder(raw) {
   };
 }
 
-export async function getPickerOrders() {
+export async function getPickerOrders(statuses) {
+  const statusParam =
+    Array.isArray(statuses) && statuses.length
+      ? statuses.join(",")
+      : "confirmed,preparing";
+
   const res = await fetchJSON(
-    `/api/dashboard/picker/orders?shop_id=${SHOP_ID}&status=confirmed,preparing`,
+    `/api/dashboard/picker/orders?shop_id=${SHOP_ID}&status=${encodeURIComponent(statusParam)}`,
   );
+
   const rawOrders = res.orders ?? res.data ?? res;
   return Array.isArray(rawOrders) ? rawOrders.map(normalizeOrder) : [];
 }
 
 export async function setOrderStatus(orderId, status, pickerNote) {
   const body = { status };
-  if (pickerNote) body.picker_note = pickerNote;
+  if (pickerNote !== undefined) body.picker_note = pickerNote;
 
-  const res = await fetchJSON(
-    `/api/dashboard/picker/orders/${orderId}/status`,
-    {
-      method: "PATCH",
-      body: JSON.stringify(body),
-    },
-  );
-
-  return res;
+  return await fetchJSON(`/api/dashboard/picker/orders/${orderId}/status`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
 }
-
 
 export function getShopId() {
   return SHOP_ID;

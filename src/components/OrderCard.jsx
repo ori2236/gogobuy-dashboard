@@ -1,11 +1,6 @@
-import { RefreshCw, Send, ShoppingBasket, PackageCheck } from "lucide-react";
+import { RefreshCw, Send, ShoppingBasket } from "lucide-react";
 import { cn, formatDateTime } from "../lib/utils";
-import {
-  allPicked,
-  canMarkReady,
-  pickedCount,
-  progressPct,
-} from "../lib/hooks";
+import { canMarkReady, pickedCount, progressPct } from "../lib/hooks";
 import { StatusBadge } from "./StatusBadge";
 import { OrderItemRow } from "./OrderItemRow";
 
@@ -20,17 +15,23 @@ export function OrderCard({
 }) {
   const busy = busyOrderId === order.id;
 
+  const isReady = order.status === "ready";
+  const isCompleted = order.status === "completed";
+  const readonly = isReady || isCompleted;
+
+  const showProgress =
+    order.status === "confirmed" || order.status === "preparing";
+
   const pct = progressPct(order);
   const picked = pickedCount(order);
   const total = order.items.length;
 
-  const isPreparing = order.status === "preparing";
-  const isConfirmed = order.status === "confirmed";
-  const isReady = order.status === "ready";
-
   const name = (order.customer_name || "").trim();
   const phone = (order.customer_phone || "").trim();
   const showName = Boolean(name) && name !== phone;
+
+  const sentNote = (order.picker_note || "").trim();
+  const hasSentNote = Boolean(sentNote);
 
   return (
     <div className="card overflow-hidden">
@@ -58,22 +59,24 @@ export function OrderCard({
           </div>
         </div>
 
-        <div className="mt-4">
-          <div className="flex items-center gap-3">
-            <div className="text-xs font-semibold text-slate-600">
-              {picked}/{total} לוקטו
+        {showProgress ? (
+          <div className="mt-4">
+            <div className="flex items-center gap-3">
+              <div className="text-xs font-semibold text-slate-600">
+                {picked}/{total} לוקטו
+              </div>
+              <div className="ms-auto text-xs font-semibold text-slate-600">
+                {pct}%
+              </div>
             </div>
-            <div className="ms-auto text-xs font-semibold text-slate-600">
-              {pct}%
+            <div className="mt-2 h-2 w-full rounded-full bg-slate-100">
+              <div
+                className="h-2 rounded-full bg-emerald-500"
+                style={{ width: `${pct}%` }}
+              />
             </div>
           </div>
-          <div className="mt-2 h-2 w-full rounded-full bg-slate-100">
-            <div
-              className="h-2 rounded-full bg-emerald-500"
-              style={{ width: `${pct}%` }}
-            />
-          </div>
-        </div>
+        ) : null}
 
         {(() => {
           const scroll = order.items.length > 4;
@@ -91,8 +94,9 @@ export function OrderCard({
                     <OrderItemRow
                       key={item.id}
                       item={item}
-                      disabled={isReady}
+                      disabled={readonly}
                       busy={busyItemId === item.id}
+                      showCheckbox={!readonly}
                       onToggle={(picked) => onToggleItem(item.id, picked)}
                     />
                   ))
@@ -107,45 +111,62 @@ export function OrderCard({
         })()}
 
         <div className="mt-5">
-          <div className="mb-2 text-xs font-bold text-slate-700 text-right">
-            הודעת מלקט ללקוח{" "}
-            <span className="text-slate-500 font-medium">(אופציונלי)</span>
-          </div>
+          {readonly ? (
+            hasSentNote ? (
+              <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4 text-right">
+                <div className="text-xs font-bold text-slate-700">
+                  {isCompleted
+                    ? "הערה שנשלחה ללקוח (הזמנה נאספה)"
+                    : "הערה שנשלחה ללקוח"}
+                </div>
+                <div className="mt-2 text-sm text-slate-700 whitespace-pre-wrap">
+                  {sentNote}
+                </div>
+              </div>
+            ) : null
+          ) : (
+            <>
+              <div className="mb-2 text-xs font-bold text-slate-700 text-right">
+                הערת מלקט ללקוח{" "}
+                <span className="text-slate-500 font-medium">(אופציונלי)</span>
+              </div>
 
-          <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
-            <button
-              className={cn(
-                canMarkReady(order) ? "btn-success" : "btn-secondary",
-                "w-full sm:w-[170px] sm:shrink-0",
-              )}
-              onClick={onMarkReady}
-              disabled={busy || !canMarkReady(order) || isReady}
-              title={
-                !canMarkReady(order)
-                  ? "אפשר רק אחרי שכל המוצרים מסומנים ובסטטוס 'בליקוט'"
-                  : ""
-              }
-            >
-              {busy ? (
-                <RefreshCw className="h-4 w-4 animate-spin" />
-              ) : (
-                <Send className="h-4 w-4" />
-              )}
-              הזמנה מוכנה
-            </button>
+              <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
+                <button
+                  className={cn(
+                    canMarkReady(order) ? "btn-success" : "btn-secondary",
+                    "w-full sm:w-[170px] sm:shrink-0",
+                  )}
+                  onClick={onMarkReady}
+                  disabled={busy || !canMarkReady(order) || isReady}
+                  title={
+                    !canMarkReady(order)
+                      ? "אפשר רק אחרי שכל המוצרים מסומנים ובסטטוס 'בליקוט'"
+                      : ""
+                  }
+                >
+                  {busy ? (
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Send className="h-4 w-4" />
+                  )}
+                  הזמנה מוכנה
+                </button>
 
-            <textarea
-              className="w-full flex-1 rounded-2xl border border-slate-200 bg-white px-3 py-1 text-sm text-slate-900 shadow-sm outline-none focus:border-slate-900 text-right"
-              rows={2}
-              value={pickerNote || ""}
-              onChange={(e) => onChangeNote(e.target.value)}
-              placeholder="לדוגמה: שמתי את המוצרים בקירור בשקית נפרדת"
-            />
-          </div>
+                <textarea
+                  className="w-full flex-1 rounded-2xl border border-slate-200 bg-white px-3 py-1 text-sm text-slate-900 shadow-sm outline-none focus:border-slate-900 text-right"
+                  rows={2}
+                  value={pickerNote || ""}
+                  onChange={(e) => onChangeNote(e.target.value)}
+                  placeholder="לדוגמה: שמתי את המוצרים בקירור בשקית נפרדת"
+                />
+              </div>
 
-          <div className="mt-1 text-[11px] text-slate-500 text-right">
-            ההודעה תצורף להודעת “ההזמנה מוכנה”.
-          </div>
+              <div className="mt-1 text-[11px] text-slate-500 text-right">
+                ההערה תשלח ללקוח כהודעה
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>

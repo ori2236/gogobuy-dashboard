@@ -1,18 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getPickerOrders, setOrderStatus } from "./api";
 
-const REFRESH_MS = Number(import.meta.env.VITE_REFRESH_MS || "10000");
-
-export function useOrders() {
+export function useOrders(statuses) {
+  const key = Array.isArray(statuses) ? statuses.join(",") : "";
   return useQuery({
-    queryKey: ["pickerOrders"],
-    queryFn: getPickerOrders,
+    queryKey: ["pickerOrders", key],
+    queryFn: () => getPickerOrders(statuses),
     refetchInterval: false,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
   });
 }
-
 
 export function useSetOrderStatus() {
   const qc = useQueryClient();
