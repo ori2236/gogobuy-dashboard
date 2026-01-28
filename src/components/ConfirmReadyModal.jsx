@@ -25,7 +25,7 @@ export function ConfirmReadyModal({
       role="dialog"
       aria-modal="true"
     >
-      <div className="w-full max-w-3xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl">
+      <div className="w-full max-w-3xl overflow-hidden rounded-3xl bg-white shadow-xl">
         <div className="p-6">
           <div className="flex items-start gap-4">
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-amber-50 text-amber-700">
@@ -42,7 +42,7 @@ export function ConfirmReadyModal({
             </div>
           </div>
 
-          <div className="mt-5 rounded-2xl border border-slate-100 bg-slate-50 p-4">
+          <div className="mt-5 rounded-2xl bg-slate-200 p-4">
             <div className="flex items-center justify-between gap-3" dir="ltr">
               <div className="text-sm font-extrabold text-slate-900">
                 הזמנה #{order.id}
@@ -53,17 +53,17 @@ export function ConfirmReadyModal({
                 dir="rtl"
               >
                 {showName ? (
-                  <span className="pill bg-white text-slate-700 border border-slate-200">
+                  <span className="pill bg-white text-slate-700">
                     {name}
                   </span>
                 ) : null}
                 {phone ? (
-                  <span className="pill bg-white text-slate-700 border border-slate-200">
+                  <span className="pill bg-white text-slate-700">
                     {phone}
                   </span>
                 ) : null}
                 {order.created_at ? (
-                  <span className="pill bg-white text-slate-700 border border-slate-200">
+                  <span className="pill bg-white text-slate-700">
                     {formatDateTime(order.created_at)}
                   </span>
                 ) : null}
@@ -72,7 +72,7 @@ export function ConfirmReadyModal({
 
             <div
               className={cn(
-                "mt-4 rounded-2xl border border-slate-100 bg-slate-50/60",
+                "mt-4 rounded-2xl bg-slate-200",
                 scrollItems && "max-h-[240px] overflow-y-auto pe-1",
               )}
               dir="rtl"
@@ -81,7 +81,7 @@ export function ConfirmReadyModal({
                 {items.map((it) => (
                   <div
                     key={it.id}
-                    className="flex items-center justify-end gap-3 rounded-2xl border border-slate-100 bg-white px-3 py-3"
+                    className="flex items-center justify-end gap-3 rounded-2xl bg-white px-3 py-3"
                   >
                     <div className="whitespace-nowrap text-sm font-extrabold text-slate-800">
                       <span>
@@ -105,7 +105,7 @@ export function ConfirmReadyModal({
             </div>
 
             <div
-              className="mt-4 rounded-2xl border border-slate-100 text-right"
+              className="mt-4 rounded-2xl text-right"
               dir="rtl"
             >
               <div className="text-xs font-bold text-slate-700">
@@ -113,7 +113,7 @@ export function ConfirmReadyModal({
               </div>
 
               <textarea
-                className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:border-slate-900 text-right"
+                className="mt-2 w-full rounded-2xl bg-white px-3 py-1 text-sm text-slate-900 shadow-sm outline-none focus:border-slate-900 text-right"
                 rows={2}
                 value={note || ""}
                 onChange={(e) => onChangeNote?.(e.target.value)}

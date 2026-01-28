@@ -121,7 +121,7 @@ export function TopBar({
             )}
           >
             <Boxes className="h-4 w-4" />
-            עדכון מלאי
+            ניהול מלאי
           </button>
         </div>
       </div>

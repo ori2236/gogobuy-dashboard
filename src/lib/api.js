@@ -115,3 +115,79 @@ export async function setOrderStatus(orderId, status, pickerNote) {
 export function getShopId() {
   return SHOP_ID;
 }
+
+function normalizeStockProduct(raw) {
+  return {
+    id: Number(raw.id),
+    shop_id: Number(raw.shop_id ?? raw.shopId ?? SHOP_ID),
+    name: String(raw.name ?? ""),
+    display_name_en: String(raw.display_name_en ?? raw.displayNameEn ?? ""),
+    price:
+      raw.price === null || raw.price === undefined ? null : Number(raw.price),
+    stock_amount:
+      raw.stock_amount === null || raw.stock_amount === undefined
+        ? null
+        : Number(raw.stock_amount),
+    stock_unit: raw.stock_unit ?? raw.stockUnit ?? null,
+    category: raw.category ?? null,
+    sub_category: raw.sub_category ?? raw.subCategory ?? null,
+    updated_at: raw.updated_at ?? raw.updatedAt ?? null,
+    created_at: raw.created_at ?? raw.createdAt ?? null,
+  };
+}
+
+export async function getStockCategories() {
+  const res = await fetchJSON(
+    `/api/dashboard/stock/categories?shop_id=${SHOP_ID}`,
+  );
+  return res;
+}
+
+export async function getStockProductsPage({
+  q,
+  category,
+  sub_category,
+  limit = 40,
+  cursor = null,
+}) {
+  const params = new URLSearchParams();
+  params.set("shop_id", String(SHOP_ID));
+  params.set("limit", String(limit));
+  if (cursor) params.set("cursor", String(cursor));
+  if (q !== undefined && q !== null) params.set("q", String(q));
+  if (category) params.set("category", String(category));
+  if (sub_category) params.set("sub_category", String(sub_category));
+
+  const res = await fetchJSON(
+    `/api/dashboard/stock/products?${params.toString()}`,
+  );
+
+  const list = res.products ?? res.data ?? res.items ?? [];
+
+  return {
+    products: Array.isArray(list) ? list.map(normalizeStockProduct) : [],
+    next_cursor: res.next_cursor ?? res.nextCursor ?? null,
+    total_count: res.total_count ?? res.totalCount ?? null,
+  };
+}
+
+export async function createStockProduct(payload) {
+  return await fetchJSON(`/api/dashboard/stock/products`, {
+    method: "POST",
+    body: JSON.stringify({ ...payload, shop_id: SHOP_ID }),
+  });
+}
+
+export async function updateStockProduct(id, payload) {
+  return await fetchJSON(`/api/dashboard/stock/products/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ ...payload, shop_id: SHOP_ID }),
+  });
+}
+
+export async function deleteStockProduct(id) {
+  return await fetchJSON(
+    `/api/dashboard/stock/products/${id}?shop_id=${SHOP_ID}`,
+    { method: "DELETE" },
+  );
+}

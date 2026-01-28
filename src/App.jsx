@@ -5,11 +5,11 @@ import { OrderCard } from "./components/OrderCard";
 import { SkeletonCard } from "./components/Skeleton";
 import { Toast } from "./components/Toast";
 import { ConfirmReadyModal } from "./components/ConfirmReadyModal";
+import { StockPage } from "./components/StockPage";
 
 function sortOrders(orders, mode) {
   const time = (o) => (o.created_at ? new Date(o.created_at).getTime() : 0);
-
-  const byNewest = (a, b) => time(b) - time(a);
+  const byOldest = (a, b) => time(a) - time(b);
 
   if (mode === "pending") {
     const rank = (s) => (s === "preparing" ? 0 : s === "confirmed" ? 1 : 2);
@@ -17,11 +17,11 @@ function sortOrders(orders, mode) {
     return [...orders].sort((a, b) => {
       const r = rank(a.status) - rank(b.status);
       if (r !== 0) return r;
-      return byNewest(a, b);
+      return byOldest(a, b);
     });
   }
 
-  return [...orders].sort(byNewest);
+  return [...orders].sort(byOldest);
 }
 
 function loadPickedMap() {
@@ -52,6 +52,12 @@ export default function App() {
   const [noteMap, setNoteMap] = useState(loadNoteMap);
   const [confirm, setConfirm] = useState({ open: false, order: null });
   const [activeTab, setActiveTab] = useState("pending");
+  const [stockRefetch, setStockRefetch] = useState(null);
+  const [stockIsFetching, setStockIsFetching] = useState(false);
+
+  const registerStockRefetch = (fn) => {
+    setStockRefetch(() => fn || null);
+  };
 
   const ALL_STATUSES = ["confirmed", "preparing", "ready", "completed"];
   const {
@@ -61,6 +67,7 @@ export default function App() {
     refetch,
     error,
   } = useOrders(ALL_STATUSES);
+
   const setStatus = useSetOrderStatus();
 
   const notify = (kind, message) => setToast({ kind, message });
@@ -209,8 +216,11 @@ export default function App() {
           activeTab={activeTab}
           onTabChange={setActiveTab}
           counts={counts}
-          onRefresh={() => refetch()}
-          isRefreshing={isFetching}
+          onRefresh={() => {
+            if (activeTab === "stock") stockRefetch?.();
+            else refetch();
+          }}
+          isRefreshing={activeTab === "stock" ? stockIsFetching : isFetching}
         />
 
         {error ? (
@@ -236,10 +246,12 @@ export default function App() {
         ) : null}
 
         {activeTab === "stock" ? (
-          <div className="mt-6 card p-8 text-center">
-            <div className="text-lg font-extrabold">עדכון מלאי</div>
-            <div className="mt-2 text-sm text-slate-600">{emptyText}</div>
-          </div>
+          <StockPage
+            onNotify={(kind, msg) => notify(kind, msg)}
+            onOrdersChanged={() => refetch()}
+            onRegisterRefetch={registerStockRefetch}
+            onFetchingChange={setStockIsFetching}
+          />
         ) : (
           <div className="mt-6 grid gap-5">
             {isLoading ? (
