@@ -1,3 +1,4 @@
+import { createElement } from "react";
 import {
   RefreshCw,
   Store,
@@ -5,11 +6,14 @@ import {
   Package,
   CheckCheck,
   Boxes,
+  BadgePercent,
 } from "lucide-react";
 import { cn } from "../lib/utils";
 import { getShopId } from "../lib/api";
 
-function TabBtn({ active, onClick, icon: Icon, label, count }) {
+function TabBtn({ active, onClick, icon, label, count }) {
+  const hasCount = count !== undefined && count !== null;
+
   return (
     <button
       onClick={onClick}
@@ -20,16 +24,18 @@ function TabBtn({ active, onClick, icon: Icon, label, count }) {
           : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50",
       )}
     >
-      <Icon className="h-4 w-4" />
+      {createElement(icon, { className: "h-4 w-4" })}
       <span>{label}</span>
-      <span
-        className={cn(
-          "ms-1 inline-flex h-6 min-w-6 items-center justify-center rounded-full px-2 text-xs font-extrabold",
-          active ? "bg-white/15 text-white" : "bg-slate-100 text-slate-800",
-        )}
-      >
-        {count ?? 0}
-      </span>
+      {hasCount ? (
+        <span
+          className={cn(
+            "ms-1 inline-flex h-6 min-w-6 items-center justify-center rounded-full px-2 text-xs font-extrabold",
+            active ? "bg-white/15 text-white" : "bg-slate-100 text-slate-800",
+          )}
+        >
+          {count ?? 0}
+        </span>
+      ) : null}
     </button>
   );
 }
@@ -111,18 +117,18 @@ export function TopBar({
             label="הזמנות ממתינות"
             count={counts?.pending ?? 0}
           />
-          <button
+          <TabBtn
+            active={activeTab === "promotions"}
+            onClick={() => onTabChange("promotions")}
+            icon={BadgePercent}
+            label="מבצעים"
+          />
+          <TabBtn
+            active={activeTab === "stock"}
             onClick={() => onTabChange("stock")}
-            className={cn(
-              "inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition border",
-              activeTab === "stock"
-                ? "bg-slate-900 text-white border-slate-900"
-                : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50",
-            )}
-          >
-            <Boxes className="h-4 w-4" />
-            ניהול מלאי
-          </button>
+            icon={Boxes}
+            label="ניהול מלאי"
+          />
         </div>
       </div>
     </div>

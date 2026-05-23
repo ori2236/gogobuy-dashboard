@@ -22,7 +22,9 @@ async function fetchJSON(path, init) {
     try {
       const j = raw ? JSON.parse(raw) : {};
       msg = j.message || j.error || j.msg || "";
-    } catch {}
+    } catch {
+      // Ignore malformed error bodies and fall back to the raw response.
+    }
   }
 
   const looksLikeHtml =
@@ -46,6 +48,12 @@ function toBool(v, fallback = false) {
   if (typeof v === "string")
     return ["1", "true", "yes", "כן"].includes(v.toLowerCase());
   return fallback;
+}
+
+function toNumberOrNull(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
 }
 
 function normalizeItem(raw) {
@@ -190,4 +198,86 @@ export async function deleteStockProduct(id) {
     `/api/dashboard/stock/products/${id}?shop_id=${SHOP_ID}`,
     { method: "DELETE" },
   );
+}
+
+function normalizePromotion(raw) {
+  return {
+    id: Number(raw.id),
+    shop_id: Number(raw.shop_id ?? raw.shopId ?? SHOP_ID),
+    product_id: Number(raw.product_id ?? raw.productId),
+    product_name: raw.product_name ?? raw.productName ?? null,
+    product_display_name_en:
+      raw.product_display_name_en ?? raw.productDisplayNameEn ?? null,
+    product_price: toNumberOrNull(raw.product_price ?? raw.productPrice),
+    product_category: raw.product_category ?? raw.productCategory ?? null,
+    product_sub_category: raw.product_sub_category ?? raw.productSubCategory ?? null,
+    kind: String(raw.kind ?? ""),
+    percent_off: toNumberOrNull(raw.percent_off ?? raw.percentOff),
+    amount_off: toNumberOrNull(raw.amount_off ?? raw.amountOff),
+    fixed_price: toNumberOrNull(raw.fixed_price ?? raw.fixedPrice),
+    bundle_buy_qty: toNumberOrNull(raw.bundle_buy_qty ?? raw.bundleBuyQty),
+    bundle_pay_price: toNumberOrNull(
+      raw.bundle_pay_price ?? raw.bundlePayPrice,
+    ),
+    description: raw.description ?? null,
+    start_at: raw.start_at ?? raw.startAt ?? null,
+    end_at: raw.end_at ?? raw.endAt ?? null,
+    created_at: raw.created_at ?? raw.createdAt ?? null,
+    updated_at: raw.updated_at ?? raw.updatedAt ?? null,
+    is_active: toBool(raw.is_active ?? raw.isActive, false),
+    is_upcoming: toBool(raw.is_upcoming ?? raw.isUpcoming, false),
+    is_expired: toBool(raw.is_expired ?? raw.isExpired, false),
+    status: raw.status ?? "inactive",
+  };
+}
+
+export async function getPromotions({
+  status = "all",
+  q = "",
+  category = "",
+  sub_category = "",
+  sort_by = "default",
+  sort_dir = "desc",
+} = {}) {
+  const params = new URLSearchParams();
+  params.set("shop_id", String(SHOP_ID));
+  params.set("status", String(status || "all"));
+  params.set("limit", "500");
+  if (q) params.set("q", String(q));
+  if (category) params.set("category", String(category));
+  if (sub_category) params.set("sub_category", String(sub_category));
+  if (sort_by) params.set("sort_by", String(sort_by));
+  if (sort_dir) params.set("sort_dir", String(sort_dir));
+
+  const res = await fetchJSON(`/api/dashboard/promotions?${params.toString()}`);
+  const list = res.promotions ?? res.data ?? res.items ?? [];
+
+  return {
+    promotions: Array.isArray(list) ? list.map(normalizePromotion) : [],
+    counts: {
+      total: Number(res.counts?.total ?? list.length ?? 0),
+      active: Number(res.counts?.active ?? 0),
+      inactive: Number(res.counts?.inactive ?? 0),
+    },
+  };
+}
+
+export async function createPromotion(payload) {
+  return await fetchJSON(`/api/dashboard/promotions`, {
+    method: "POST",
+    body: JSON.stringify({ ...payload, shop_id: SHOP_ID }),
+  });
+}
+
+export async function updatePromotion(id, payload) {
+  return await fetchJSON(`/api/dashboard/promotions/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ ...payload, shop_id: SHOP_ID }),
+  });
+}
+
+export async function deletePromotion(id) {
+  return await fetchJSON(`/api/dashboard/promotions/${id}?shop_id=${SHOP_ID}`, {
+    method: "DELETE",
+  });
 }

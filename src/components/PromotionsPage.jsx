@@ -1,0 +1,577 @@
+/* eslint-disable react-hooks/set-state-in-effect */
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  BadgePercent,
+  CalendarClock,
+  Clock3,
+  Plus,
+  Search,
+  Sparkles,
+} from "lucide-react";
+import {
+  useCreatePromotion,
+  useDeletePromotion,
+  usePromotions,
+  useStockCategories,
+  useUpdatePromotion,
+} from "../lib/hooks";
+import { cn, formatDateTime } from "../lib/utils";
+import { ConfirmDeleteModal } from "./ConfirmDeleteModal";
+import { PromotionModal } from "./PromotionModal";
+
+const FILTERS = [
+  { value: "all", label: "כל המבצעים" },
+  { value: "active", label: "פעילים" },
+  { value: "inactive", label: "לא פעילים" },
+];
+
+const KIND_LABELS = {
+  PERCENT_OFF: "אחוז הנחה",
+  AMOUNT_OFF: "הנחה בשקלים",
+  FIXED_PRICE: "מחיר קבוע",
+  BUNDLE: "כמות במחיר",
+};
+
+const SORT_OPTIONS = [
+  { value: "default:desc", label: "ברירת מחדל" },
+  { value: "start_at:desc", label: "תאריך התחלה - מהחדש לישן" },
+  { value: "start_at:asc", label: "תאריך התחלה - מהישן לחדש" },
+  { value: "end_at:desc", label: "תאריך סיום - מהמאוחר למוקדם" },
+  { value: "end_at:asc", label: "תאריך סיום - מהמוקדם למאוחר" },
+  { value: "kind:asc", label: "סוג מבצע - א׳ עד ת׳" },
+  { value: "kind:desc", label: "סוג מבצע - ת׳ עד א׳" },
+];
+
+function useDebouncedValue(value, delayMs = 300) {
+  const [debounced, setDebounced] = useState(value);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), delayMs);
+    return () => clearTimeout(t);
+  }, [value, delayMs]);
+
+  return debounced;
+}
+
+function toCategoriesMap(raw) {
+  if (!raw) return {};
+
+  const arr = raw.categories ?? raw.data ?? null;
+  if (Array.isArray(arr)) {
+    const map = {};
+    for (const row of arr) {
+      const c = row.category ?? row.name ?? row.key;
+      if (!c) continue;
+      const subs = row.sub_categories ?? row.subCategories ?? [];
+      map[String(c)] = Array.isArray(subs) ? subs.map(String) : [];
+    }
+    return map;
+  }
+
+  if (typeof raw === "object") {
+    const map = {};
+    for (const [k, v] of Object.entries(raw)) {
+      if (!k) continue;
+      map[String(k)] = Array.isArray(v) ? v.map(String) : [];
+    }
+    return map;
+  }
+
+  return {};
+}
+
+function fmtMoney(v) {
+  if (v === null || v === undefined || Number.isNaN(Number(v))) return "—";
+  return `₪${Number(v).toFixed(2)}`;
+}
+
+function fmtShortNumber(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return "—";
+  return n.toFixed(3).replace(/\.?0+$/, "");
+}
+
+function promoValueText(promo) {
+  if (!promo) return "—";
+  if (promo.kind === "PERCENT_OFF") return `${fmtShortNumber(promo.percent_off)}% הנחה`;
+  if (promo.kind === "AMOUNT_OFF") return `${fmtMoney(promo.amount_off)} הנחה`;
+  if (promo.kind === "FIXED_PRICE") return `מחיר ${fmtMoney(promo.fixed_price)}`;
+  if (promo.kind === "BUNDLE") {
+    return `${fmtShortNumber(promo.bundle_buy_qty)} יח׳ ב-${fmtMoney(promo.bundle_pay_price)}`;
+  }
+  return "—";
+}
+
+function statusInfo(promo) {
+  if (promo?.is_active || promo?.status === "active") {
+    return {
+      label: "פעיל",
+      className: "bg-emerald-50 text-emerald-700",
+    };
+  }
+
+  if (promo?.is_upcoming || promo?.status === "upcoming") {
+    return {
+      label: "עתידי",
+      className: "bg-blue-50 text-blue-700",
+    };
+  }
+
+  if (promo?.is_expired || promo?.status === "expired") {
+    return {
+      label: "פג תוקף",
+      className: "bg-slate-100 text-slate-600",
+    };
+  }
+
+  return {
+    label: "לא פעיל",
+    className: "bg-slate-100 text-slate-600",
+  };
+}
+
+function dateRangeText(promo) {
+  const start = promo?.start_at ? formatDateTime(promo.start_at) : "—";
+  const end = promo?.end_at ? formatDateTime(promo.end_at) : "ללא סיום";
+  return { start, end };
+}
+
+function parseSortValue(sortValue) {
+  const [sort_by = "default", sort_dir = "desc"] = String(sortValue || "default:desc").split(":");
+  return { sort_by, sort_dir };
+}
+
+function SummaryCard({ active, className, icon, label, value, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "rounded-2xl border p-4 text-right transition hover:-translate-y-0.5 hover:shadow-sm",
+        active ? "ring-2 ring-slate-900/80" : "",
+        className,
+      )}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-xs font-bold">{label}</span>
+        {icon}
+      </div>
+      <div className="mt-2 text-2xl font-extrabold">{value ?? 0}</div>
+    </button>
+  );
+}
+
+export function PromotionsPage({
+  onNotify,
+  onRegisterRefetch,
+  onFetchingChange,
+}) {
+  const [status, setStatus] = useState("all");
+  const [q, setQ] = useState("");
+  const [category, setCategory] = useState("");
+  const [subCategory, setSubCategory] = useState("");
+  const [sortValue, setSortValue] = useState("default:desc");
+  const [modal, setModal] = useState({
+    open: false,
+    mode: "create",
+    promotion: null,
+  });
+  const [confirmDel, setConfirmDel] = useState({ open: false, promotion: null });
+
+  const qDebounced = useDebouncedValue(q, 300);
+  const { sort_by, sort_dir } = useMemo(
+    () => parseSortValue(sortValue),
+    [sortValue],
+  );
+
+  const catQuery = useStockCategories();
+  const categoriesMap = useMemo(
+    () => toCategoriesMap(catQuery.data),
+    [catQuery.data],
+  );
+
+  const categoryList = useMemo(
+    () => Object.keys(categoriesMap).sort((a, b) => a.localeCompare(b, "he")),
+    [categoriesMap],
+  );
+
+  const subCategoryList = useMemo(() => {
+    if (!category) return [];
+    return (categoriesMap[category] || [])
+      .slice()
+      .sort((a, b) => a.localeCompare(b, "he"));
+  }, [categoriesMap, category]);
+
+  useEffect(() => {
+    if (!category) {
+      setSubCategory("");
+      return;
+    }
+    if (subCategory && !(categoriesMap[category] || []).includes(subCategory)) {
+      setSubCategory("");
+    }
+  }, [category, subCategory, categoriesMap]);
+
+  const promosQuery = usePromotions({
+    status,
+    q: String(qDebounced || "").trim(),
+    category: category || null,
+    sub_category: subCategory || null,
+    sort_by,
+    sort_dir,
+  });
+
+  const createMut = useCreatePromotion();
+  const updateMut = useUpdatePromotion();
+  const deleteMut = useDeletePromotion();
+
+  const busy = createMut.isPending || updateMut.isPending || deleteMut.isPending;
+  const promotions = promosQuery.data?.promotions || [];
+  const counts = promosQuery.data?.counts || { total: 0, active: 0, inactive: 0 };
+
+  const refetchFn = useCallback(() => promosQuery.refetch(), [promosQuery]);
+  useEffect(() => {
+    onRegisterRefetch?.(refetchFn);
+    return () => onRegisterRefetch?.(null);
+  }, [onRegisterRefetch, refetchFn]);
+
+  useEffect(() => {
+    onFetchingChange?.(Boolean(promosQuery.isFetching || catQuery.isFetching));
+  }, [onFetchingChange, promosQuery.isFetching, catQuery.isFetching]);
+
+  const activeFilterLabel = useMemo(() => {
+    return FILTERS.find((f) => f.value === status)?.label || "כל המבצעים";
+  }, [status]);
+
+  async function onSavePromotion(payload) {
+    try {
+      if (modal.mode === "create") {
+        await createMut.mutateAsync(payload);
+        onNotify?.("success", "מבצע נוסף בהצלחה");
+      } else {
+        const id = modal.promotion?.id;
+        if (!id) return;
+        await updateMut.mutateAsync({ id, payload });
+        onNotify?.("success", "מבצע עודכן בהצלחה");
+      }
+      setModal({ open: false, mode: "create", promotion: null });
+    } catch (e) {
+      onNotify?.("error", e?.message || "שגיאה בשמירת מבצע");
+    }
+  }
+
+  async function onConfirmDelete() {
+    const promo = confirmDel.promotion;
+    if (!promo) return;
+
+    try {
+      await deleteMut.mutateAsync(promo.id);
+      setConfirmDel({ open: false, promotion: null });
+      onNotify?.("success", "המבצע נמחק");
+    } catch (e) {
+      onNotify?.("error", e?.message || "שגיאה במחיקת מבצע");
+    }
+  }
+
+  return (
+    <div className="mt-6 card p-0 overflow-hidden">
+      <div className="p-6 sm:p-7" dir="rtl">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex items-start gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-amber-50 text-amber-700">
+              <BadgePercent className="h-6 w-6" />
+            </div>
+
+            <div className="min-w-0 flex-1 text-right">
+              <div className="text-xl font-extrabold leading-tight">
+                ניהול מבצעים
+              </div>
+              <div className="mt-1 text-sm text-slate-600">
+                צפייה, סינון, הוספה, עריכה ומחיקה של מבצעי מוצרים. מבצע פעיל נקבע אוטומטית לפי התאריכים.
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-2">
+            <button
+              className="btn-success"
+              onClick={() =>
+                setModal({ open: true, mode: "create", promotion: null })
+              }
+              disabled={busy}
+            >
+              <Plus className="h-4 w-4" />
+              הוסף מבצע
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-3 sm:grid-cols-3">
+          <SummaryCard
+            active={status === "active"}
+            className="border-emerald-100 bg-emerald-50 text-emerald-900"
+            icon={<Sparkles className="h-4 w-4 text-emerald-700" />}
+            label="פעילים עכשיו"
+            value={counts.active}
+            onClick={() => setStatus("active")}
+          />
+
+          <SummaryCard
+            active={status === "inactive"}
+            className="border-slate-100 bg-slate-50 text-slate-900"
+            icon={<Clock3 className="h-4 w-4 text-slate-500" />}
+            label="לא פעילים"
+            value={counts.inactive}
+            onClick={() => setStatus("inactive")}
+          />
+
+          <SummaryCard
+            active={status === "all"}
+            className="border-amber-100 bg-amber-50 text-amber-900"
+            icon={<BadgePercent className="h-4 w-4 text-amber-700" />}
+            label="סה״כ מבצעים"
+            value={counts.total}
+            onClick={() => setStatus("all")}
+          />
+        </div>
+
+        <div className="mt-5 rounded-2xl bg-slate-200 p-4">
+          <div className="grid gap-3 sm:grid-cols-12">
+            <div className="sm:col-span-3">
+              <div className="text-xs font-bold text-slate-700">קטגוריה</div>
+              <select
+                className="mt-2 w-full rounded-2xl bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-slate-200"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+              >
+                <option value="">כל הקטגוריות</option>
+                {categoryList.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="sm:col-span-3">
+              <div className="text-xs font-bold text-slate-700">תת-קטגוריה</div>
+              <select
+                className="mt-2 w-full rounded-2xl bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-slate-200 disabled:bg-slate-50 disabled:text-slate-400"
+                value={subCategory}
+                disabled={!category}
+                onChange={(e) => setSubCategory(e.target.value)}
+              >
+                <option value="">כל תתי-הקטגוריות</option>
+                {subCategoryList.map((sc) => (
+                  <option key={sc} value={sc}>
+                    {sc}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="sm:col-span-3">
+              <div className="text-xs font-bold text-slate-700">מיון</div>
+              <select
+                className="mt-2 w-full rounded-2xl bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-slate-200"
+                value={sortValue}
+                onChange={(e) => setSortValue(e.target.value)}
+              >
+                {SORT_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="sm:col-span-3">
+              <div className="text-xs font-bold text-slate-700">חיפוש</div>
+              <div className="relative mt-2">
+                <div className="pointer-events-none absolute inset-y-0 start-3 flex items-center text-slate-400">
+                  <Search className="h-4 w-4" />
+                </div>
+                <input
+                  className="w-full rounded-2xl bg-white ps-10 pe-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-slate-200"
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  placeholder="שם מוצר / תיאור / שם באנגלית"
+                />
+              </div>
+            </div>
+          </div>
+
+          {catQuery.isLoading ? (
+            <div className="mt-3 text-sm text-slate-600">טוען קטגוריות…</div>
+          ) : catQuery.error ? (
+            <div className="mt-3 rounded-2xl border border-rose-100 bg-rose-50 p-3 text-sm text-rose-900">
+              שגיאה בטעינת קטגוריות: {String(catQuery.error?.message || "")}
+            </div>
+          ) : null}
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center justify-end gap-2" dir="rtl">
+          <span className="pill bg-amber-50 text-amber-700">
+            {activeFilterLabel}: {promotions.length}
+          </span>
+          {category ? (
+            <span className="pill bg-slate-100 text-slate-700">
+              קטגוריה: {category}
+            </span>
+          ) : null}
+          {subCategory ? (
+            <span className="pill bg-slate-100 text-slate-700">
+              תת-קטגוריה: {subCategory}
+            </span>
+          ) : null}
+        </div>
+
+        <div className="mt-3 overflow-hidden rounded-2xl border border-slate-100 bg-white">
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-right text-sm">
+              <thead className="bg-slate-50 text-xs font-extrabold text-slate-700">
+                <tr>
+                  <th className="px-4 py-3">מוצר</th>
+                  <th className="px-4 py-3">קטגוריה</th>
+                  <th className="px-4 py-3">סוג</th>
+                  <th className="px-4 py-3">ערך</th>
+                  <th className="px-4 py-3">תיאור</th>
+                  <th className="px-4 py-3">תוקף</th>
+                  <th className="px-3 py-3">סטטוס</th>
+                  <th className="px-16 py-3">פעולות</th>
+                </tr>
+              </thead>
+
+              <tbody className="divide-y divide-slate-100">
+                {promosQuery.isLoading ? (
+                  <tr>
+                    <td className="px-4 py-10 text-center text-slate-500" colSpan={8}>
+                      טוען מבצעים…
+                    </td>
+                  </tr>
+                ) : promosQuery.error ? (
+                  <tr>
+                    <td className="px-4 py-10 text-center text-rose-700" colSpan={8}>
+                      שגיאה בטעינת מבצעים: {String(promosQuery.error?.message || "")}
+                    </td>
+                  </tr>
+                ) : promotions.length ? (
+                  promotions.map((promo) => {
+                    const s = statusInfo(promo);
+                    const dates = dateRangeText(promo);
+                    return (
+                      <tr key={promo.id} className="hover:bg-slate-50">
+                        <td className="px-4 py-3 text-slate-900">
+                          <div className="font-bold">{promo.product_name || `#${promo.product_id}`}</div>
+                          <div className="mt-1 text-xs text-slate-500" dir="ltr">
+                            {promo.product_display_name_en || "—"}
+                          </div>
+                          <div className="mt-1 text-xs text-slate-500">
+                            מחיר מוצר: {fmtMoney(promo.product_price)}
+                          </div>
+                        </td>
+
+                        <td className="px-4 py-3 text-slate-700">
+                          <div>{promo.product_category || "—"}</div>
+                          <div className="mt-1 text-xs text-slate-500">
+                            {promo.product_sub_category || "—"}
+                          </div>
+                        </td>
+
+                        <td className="px-4 py-3 text-slate-700">
+                          {KIND_LABELS[promo.kind] || promo.kind || "—"}
+                        </td>
+
+                        <td className="px-4 py-3 font-bold text-slate-900">
+                          {promoValueText(promo)}
+                        </td>
+
+                        <td className="max-w-[320px] px-4 py-3 text-slate-700">
+                          <div className="line-clamp-3">
+                            {promo.description || "—"}
+                          </div>
+                        </td>
+
+                        <td className="px-4 py-3 text-slate-700">
+                          <div className="flex items-start justify-end gap-2">
+                            <CalendarClock className="mt-0.5 h-4 w-4 text-slate-400" />
+                            <div>
+                              <div>מתחיל: {dates.start}</div>
+                              <div className="mt-1 text-xs text-slate-500">
+                                מסתיים: {dates.end}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+
+                        <td className="px-3 py-3">
+                          <span className={cn("pill", s.className)}>{s.label}</span>
+                        </td>
+
+                        <td className="px-3 py-3">
+                          <div className="flex items-center justify-end gap-2 whitespace-nowrap">
+                            <button
+                              className="btn-secondary"
+                              disabled={busy}
+                              onClick={() =>
+                                setModal({
+                                  open: true,
+                                  mode: "edit",
+                                  promotion: promo,
+                                })
+                              }
+                            >
+                              עריכה
+                            </button>
+                            <button
+                              className="btn-outline"
+                              disabled={busy}
+                              onClick={() =>
+                                setConfirmDel({ open: true, promotion: promo })
+                              }
+                            >
+                              מחיקה
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td className="px-4 py-10 text-center text-slate-500" colSpan={8}>
+                      אין מבצעים שמתאימים לסינון הנוכחי.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <PromotionModal
+        open={modal.open}
+        mode={modal.mode}
+        busy={busy}
+        promotion={modal.promotion}
+        onCancel={() => setModal({ open: false, mode: "create", promotion: null })}
+        onSave={onSavePromotion}
+      />
+
+      <ConfirmDeleteModal
+        open={confirmDel.open}
+        busy={busy}
+        title="מחיקת מבצע"
+        text={
+          confirmDel.promotion
+            ? `למחוק את המבצע על "${confirmDel.promotion.product_name || `#${confirmDel.promotion.product_id}`}"?`
+            : "למחוק מבצע?"
+        }
+        hint="לאחר המחיקה המבצע לא יופיע ללקוחות ולא יחושב בהזמנות חדשות. הזמנות קיימות שכבר ננעל להן מחיר לא משתנות."
+        onCancel={() => setConfirmDel({ open: false, promotion: null })}
+        onConfirm={onConfirmDelete}
+      />
+    </div>
+  );
+}

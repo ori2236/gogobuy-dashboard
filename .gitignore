@@ -24,3 +24,32 @@ dist-ssr
 *.sw?
 
 .env
+
+@"
+
+# build outputs
+node_modules/
+dist/
+release/
+locales/
+
+# Electron generated files
+Dashboard.exe
+Uninstall Dashboard.exe
+dashboard.zip
+*.pak
+*.dll
+*.bin
+*.blockmap
+LICENSE.electron.txt
+LICENSES.chromium.html
+resources.pak
+
+# generated electron resources
+resources/app.asar
+resources/app-update.yml
+resources/elevate.exe
+
+# local env
+.env
+"@ | Add-Content .gitignore

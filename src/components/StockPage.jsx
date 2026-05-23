@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   useCreateStockProduct,
@@ -29,7 +30,9 @@ function loadFilters() {
 function saveFilters(next) {
   try {
     localStorage.setItem(LS_KEY, JSON.stringify(next));
-  } catch {}
+  } catch {
+    // Ignore localStorage write failures.
+  }
 }
 
 function toCategoriesMap(raw) {
@@ -340,11 +343,7 @@ export function StockPage({
                   className="w-full rounded-2xl bg-white ps-10 pe-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-slate-200"
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
-                  placeholder={
-                    category
-                      ? "שם / שם באנגלית"
-                      : "שם / שם באנגלית (לפחות 2 אותיות בלי קטגוריה)"
-                  }
+                  placeholder={"שם / שם באנגלית"}
                 />
               </div>
             </div>

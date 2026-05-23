@@ -6,6 +6,7 @@ import { SkeletonCard } from "./components/Skeleton";
 import { Toast } from "./components/Toast";
 import { ConfirmReadyModal } from "./components/ConfirmReadyModal";
 import { StockPage } from "./components/StockPage";
+import { PromotionsPage } from "./components/PromotionsPage";
 
 function sortOrders(orders, mode) {
   const time = (o) => (o.created_at ? new Date(o.created_at).getTime() : 0);
@@ -54,9 +55,15 @@ export default function App() {
   const [activeTab, setActiveTab] = useState("pending");
   const [stockRefetch, setStockRefetch] = useState(null);
   const [stockIsFetching, setStockIsFetching] = useState(false);
+  const [promotionsRefetch, setPromotionsRefetch] = useState(null);
+  const [promotionsIsFetching, setPromotionsIsFetching] = useState(false);
 
   const registerStockRefetch = (fn) => {
     setStockRefetch(() => fn || null);
+  };
+
+  const registerPromotionsRefetch = (fn) => {
+    setPromotionsRefetch(() => fn || null);
   };
 
   const ALL_STATUSES = ["confirmed", "preparing", "ready", "completed"];
@@ -98,7 +105,7 @@ export default function App() {
   }, [normalized]);
 
   const visibleOrders = useMemo(() => {
-    if (activeTab === "stock") return [];
+    if (activeTab === "stock" || activeTab === "promotions") return [];
 
     let base = normalized;
 
@@ -218,9 +225,16 @@ export default function App() {
           counts={counts}
           onRefresh={() => {
             if (activeTab === "stock") stockRefetch?.();
+            else if (activeTab === "promotions") promotionsRefetch?.();
             else refetch();
           }}
-          isRefreshing={activeTab === "stock" ? stockIsFetching : isFetching}
+          isRefreshing={
+            activeTab === "stock"
+              ? stockIsFetching
+              : activeTab === "promotions"
+                ? promotionsIsFetching
+                : isFetching
+          }
         />
 
         {error ? (
@@ -251,6 +265,12 @@ export default function App() {
             onOrdersChanged={() => refetch()}
             onRegisterRefetch={registerStockRefetch}
             onFetchingChange={setStockIsFetching}
+          />
+        ) : activeTab === "promotions" ? (
+          <PromotionsPage
+            onNotify={(kind, msg) => notify(kind, msg)}
+            onRegisterRefetch={registerPromotionsRefetch}
+            onFetchingChange={setPromotionsIsFetching}
           />
         ) : (
           <div className="mt-6 grid gap-5">

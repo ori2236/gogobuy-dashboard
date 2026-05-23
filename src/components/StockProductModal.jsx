@@ -1,20 +1,6 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 import { useEffect, useMemo, useState } from "react";
 import { RefreshCw, PackagePlus, Pencil } from "lucide-react";
-
-function stockUnitLabel(u) {
-  if (!u) return "";
-  if (u === "kg" || u === 'ק"ג' || u === 'ק"ג') return 'ק"ג';
-  if (u === "unit" || u === "units" || u === "יח'" || u === "יח׳") return "יח׳";
-  return String(u);
-}
-
-function normalizeUnitForSave(u) {
-  if (!u) return "unit";
-  if (u === 'ק"ג') return "kg";
-  if (u === "יח׳" || u === "יח'") return "unit";
-  if (u === "kg" || u === "unit") return u;
-  return "unit";
-}
 
 export function StockProductModal({
   open,
@@ -31,7 +17,6 @@ export function StockProductModal({
   const [displayNameEn, setDisplayNameEn] = useState("");
   const [price, setPrice] = useState("");
   const [stockAmount, setStockAmount] = useState("");
-  const [stockUnit, setStockUnit] = useState("unit"); // kept, not editable
   const [category, setCategory] = useState("");
   const [subCategory, setSubCategory] = useState("");
   const [err, setErr] = useState("");

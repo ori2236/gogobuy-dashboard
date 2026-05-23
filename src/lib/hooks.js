@@ -13,6 +13,10 @@ import {
   createStockProduct,
   updateStockProduct,
   deleteStockProduct,
+  getPromotions,
+  createPromotion,
+  updatePromotion,
+  deletePromotion,
 } from "./api";
 
 export function useOrders(statuses) {
@@ -94,6 +98,8 @@ export function useStockProductsInfinite({
     getNextPageParam: (lastPage) => lastPage?.next_cursor ?? null,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
+    staleTime: 60_000,
+    gcTime: 5 * 60_000,
   });
 }
 
@@ -123,5 +129,62 @@ export function useDeleteStockProduct() {
   return useMutation({
     mutationFn: (id) => deleteStockProduct(id),
     onSuccess: () => invalidateAfterStockChange(qc),
+  });
+}
+
+export function usePromotions({
+  status,
+  q,
+  category,
+  sub_category,
+  sort_by,
+  sort_dir,
+}) {
+  return useQuery({
+    queryKey: [
+      "promotions",
+      {
+        status: status ?? "all",
+        q: q ?? "",
+        category: category ?? "",
+        sub_category: sub_category ?? "",
+        sort_by: sort_by ?? "default",
+        sort_dir: sort_dir ?? "desc",
+      },
+    ],
+    queryFn: () =>
+      getPromotions({ status, q, category, sub_category, sort_by, sort_dir }),
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    staleTime: 30_000,
+  });
+}
+
+function invalidateAfterPromotionChange(qc) {
+  qc.invalidateQueries({ queryKey: ["promotions"] });
+  qc.invalidateQueries({ queryKey: ["pickerOrders"] });
+}
+
+export function useCreatePromotion() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload) => createPromotion(payload),
+    onSuccess: () => invalidateAfterPromotionChange(qc),
+  });
+}
+
+export function useUpdatePromotion() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }) => updatePromotion(id, payload),
+    onSuccess: () => invalidateAfterPromotionChange(qc),
+  });
+}
+
+export function useDeletePromotion() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id) => deletePromotion(id),
+    onSuccess: () => invalidateAfterPromotionChange(qc),
   });
 }
