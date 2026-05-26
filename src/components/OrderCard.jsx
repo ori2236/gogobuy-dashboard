@@ -1,6 +1,15 @@
-import { RefreshCw, Send, ShoppingBasket } from "lucide-react";
+import { useState } from "react";
+import {
+  CheckCheck,
+  Download,
+  PlayCircle,
+  RefreshCw,
+  Send,
+  ShoppingBasket,
+} from "lucide-react";
 import { cn, formatDateTime } from "../lib/utils";
 import { canMarkReady, pickedCount, progressPct } from "../lib/hooks";
+import { downloadOrderPdf } from "../lib/orderPdf";
 import { StatusBadge } from "./StatusBadge";
 import { OrderItemRow } from "./OrderItemRow";
 
@@ -8,19 +17,27 @@ export function OrderCard({
   order,
   busyOrderId,
   busyItemId,
+  onStartPicking,
   onMarkReady,
+  onMarkCompleted,
   onToggleItem,
+  onUpdateItemDetails,
   pickerNote,
   onChangeNote,
+  shopInfo,
 }) {
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const [openDetailsItemId, setOpenDetailsItemId] = useState(null);
   const busy = busyOrderId === order.id;
 
+  const isConfirmed = order.status === "confirmed";
+  const isPreparing = order.status === "preparing";
   const isReady = order.status === "ready";
   const isCompleted = order.status === "completed";
   const readonly = isReady || isCompleted;
+  const itemDetailsEditable = isPreparing && !readonly;
 
-  const showProgress =
-    order.status === "confirmed" || order.status === "preparing";
+  const showProgress = isConfirmed || isPreparing;
 
   const pct = progressPct(order);
   const picked = pickedCount(order);
@@ -33,6 +50,15 @@ export function OrderCard({
   const sentNote = (order.picker_note || "").trim();
   const hasSentNote = Boolean(sentNote);
   const customerNoteToPicker = (order.customer_note_to_picker || "").trim();
+
+  async function handleDownloadPdf() {
+    try {
+      setPdfBusy(true);
+      await downloadOrderPdf(order, shopInfo || {});
+    } finally {
+      setPdfBusy(false);
+    }
+  }
 
   return (
     <div className="card overflow-hidden">
@@ -80,11 +106,22 @@ export function OrderCard({
         ) : null}
 
         {customerNoteToPicker ? (
-          <div className="mt-4 rounded-2xl border border-amber-100 bg-amber-50 p-4 text-right" dir="rtl">
-            <div className="text-xs font-extrabold text-amber-900">הודעה מהלקוח למלקט</div>
+          <div
+            className="mt-4 rounded-2xl border border-amber-100 bg-amber-50 p-4 text-right"
+            dir="rtl"
+          >
+            <div className="text-xs font-extrabold text-amber-900">
+              הודעה מהלקוח למלקט
+            </div>
             <div className="mt-2 whitespace-pre-wrap text-sm font-semibold text-amber-950">
               {customerNoteToPicker}
             </div>
+          </div>
+        ) : null}
+
+        {isPreparing ? (
+          <div className="mt-4 text-right text-[11px] font-semibold text-slate-500">
+            פרטי דו״ח למוצר הם אופציונליים. אם לא משנים כלום, הכמות שסופקה תיחשב כמו הכמות שנדרשה.
           </div>
         ) : null}
 
@@ -95,7 +132,7 @@ export function OrderCard({
             <div
               className={cn(
                 "mt-5",
-                scroll && "max-h-[210px] overflow-y-auto pe-1",
+                scroll && "max-h-[330px] overflow-y-auto pe-1",
               )}
             >
               <div className="grid gap-2">
@@ -107,7 +144,18 @@ export function OrderCard({
                       disabled={readonly}
                       busy={busyItemId === item.id}
                       showCheckbox={!readonly}
-                      onToggle={(picked) => onToggleItem(item.id, picked)}
+                      editableDetails={itemDetailsEditable}
+                      detailsOpen={openDetailsItemId === item.id}
+                      onToggleDetails={() =>
+                        setOpenDetailsItemId((current) =>
+                          current === item.id ? null : item.id,
+                        )
+                      }
+                      detailsBusy={busyItemId === item.id}
+                      onToggle={(pickedNow) => onToggleItem(item.id, pickedNow)}
+                      onSaveDetails={(details) =>
+                        onUpdateItemDetails?.(item.id, details)
+                      }
                     />
                   ))
                 ) : (
@@ -122,18 +170,66 @@ export function OrderCard({
 
         <div className="mt-5">
           {readonly ? (
-            hasSentNote ? (
-              <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4 text-right">
-                <div className="text-xs font-bold text-slate-700">
-                  {isCompleted
-                    ? "הערה שנשלחה ללקוח (הזמנה נאספה)"
-                    : "הערה שנשלחה ללקוח"}
+            <div className="grid gap-3">
+              {hasSentNote ? (
+                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4 text-right">
+                  <div className="text-xs font-bold text-slate-700">
+                    {isCompleted
+                      ? "הערה שנשלחה ללקוח (הזמנה נאספה)"
+                      : "הערה שנשלחה ללקוח"}
+                  </div>
+                  <div className="mt-2 text-sm text-slate-700 whitespace-pre-wrap">
+                    {sentNote}
+                  </div>
                 </div>
-                <div className="mt-2 text-sm text-slate-700 whitespace-pre-wrap">
-                  {sentNote}
-                </div>
+              ) : null}
+
+              <div className="flex flex-col gap-2 sm:flex-row sm:justify-start" dir="ltr">
+                <button
+                  className="btn-outline"
+                  dir="rtl"
+                  onClick={handleDownloadPdf}
+                  disabled={pdfBusy}
+                >
+                  {pdfBusy ? (
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Download className="h-4 w-4" />
+                  )}
+                  הורד PDF
+                </button>
+
+                {isReady ? (
+                  <button
+                    className="btn-success"
+                    dir="rtl"
+                    onClick={onMarkCompleted}
+                    disabled={busy}
+                  >
+                    {busy ? (
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <CheckCheck className="h-4 w-4" />
+                    )}
+                    סמן כנאספה
+                  </button>
+                ) : null}
               </div>
-            ) : null
+            </div>
+          ) : isConfirmed ? (
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+              <div className="text-right text-xs font-semibold text-slate-500">
+                התחלת ליקוט תעדכן את הלקוח שההזמנה בטיפול.
+              </div>
+              <button className="btn-primary" onClick={onStartPicking} disabled={busy}>
+                {busy ? (
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                ) : (
+                  <PlayCircle className="h-4 w-4" />
+                )}
+                התחל ללקט
+              </button>
+            </div>
           ) : (
             <>
               <div className="mb-2 text-xs font-bold text-slate-700 text-right">

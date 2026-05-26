@@ -35,6 +35,21 @@ function saveFilters(next) {
   }
 }
 
+function cleanEmojiDisplay(value) {
+  const s = String(value ?? "").trim();
+  if (!s || /^[?\uFFFD\s]+$/u.test(s)) return "";
+  return Array.from(s).slice(0, 8).join("");
+}
+
+function normalizeSubCategory(row) {
+  if (typeof row === "string") return { name: row, emoji: "" };
+  const name = row?.name ?? row?.subcategory ?? row?.sub_category ?? row?.value ?? "";
+  return {
+    name: String(name || ""),
+    emoji: cleanEmojiDisplay(row?.emoji ?? row?.icon),
+  };
+}
+
 function toCategoriesMap(raw) {
   if (!raw) return {};
 
@@ -45,7 +60,9 @@ function toCategoriesMap(raw) {
       const c = row.category ?? row.name ?? row.key;
       if (!c) continue;
       const subs = row.sub_categories ?? row.subCategories ?? [];
-      map[String(c)] = Array.isArray(subs) ? subs.map(String) : [];
+      map[String(c)] = Array.isArray(subs)
+        ? subs.map(normalizeSubCategory).filter((x) => x.name)
+        : [];
     }
     return map;
   }
@@ -54,7 +71,9 @@ function toCategoriesMap(raw) {
     const map = {};
     for (const [k, v] of Object.entries(raw)) {
       if (!k) continue;
-      map[String(k)] = Array.isArray(v) ? v.map(String) : [];
+      map[String(k)] = Array.isArray(v)
+        ? v.map(normalizeSubCategory).filter((x) => x.name)
+        : [];
     }
     return map;
   }
@@ -130,7 +149,7 @@ export function StockPage({
     if (!category) return [];
     return (categoriesMap[category] || [])
       .slice()
-      .sort((a, b) => a.localeCompare(b, "he"));
+      .sort((a, b) => a.name.localeCompare(b.name, "he"));
   }, [categoriesMap, category]);
 
   // rules:
@@ -180,7 +199,7 @@ export function StockPage({
       setSubCategory("");
       return;
     }
-    if (subCategory && !(categoriesMap[category] || []).includes(subCategory)) {
+    if (subCategory && !(categoriesMap[category] || []).some((x) => x.name === subCategory)) {
       setSubCategory("");
     }
   }, [category, subCategory, categoriesMap]);
@@ -326,8 +345,8 @@ export function StockPage({
               >
                 <option value="">— ללא —</option>
                 {subCategoryList.map((sc) => (
-                  <option key={sc} value={sc}>
-                    {sc}
+                  <option key={sc.name} value={sc.name}>
+                    {sc.emoji ? `${sc.emoji} ` : ""}{sc.name}
                   </option>
                 ))}
               </select>
@@ -379,6 +398,7 @@ export function StockPage({
             <table className="min-w-full text-right text-sm">
               <thead className="bg-slate-50 text-xs font-extrabold text-slate-700">
                 <tr>
+                  <th className="px-3 py-3">אימוג׳י</th>
                   <th className="px-4 py-3">שם</th>
                   <th className="px-4 py-3">שם באנגלית</th>
                   <th className="px-3 py-3">מחיר</th>
@@ -394,7 +414,7 @@ export function StockPage({
                   <tr>
                     <td
                       className="px-4 py-10 text-center text-slate-500"
-                      colSpan={7}
+                      colSpan={8}
                     >
                       בחר קטגוריה או הקלד לפחות 2 אותיות כדי להציג מוצרים
                     </td>
@@ -403,7 +423,7 @@ export function StockPage({
                   <tr>
                     <td
                       className="px-4 py-10 text-center text-slate-500"
-                      colSpan={7}
+                      colSpan={8}
                     >
                       טוען מוצרים…
                     </td>
@@ -412,7 +432,7 @@ export function StockPage({
                   <tr>
                     <td
                       className="px-4 py-10 text-center text-rose-700"
-                      colSpan={7}
+                      colSpan={8}
                     >
                       שגיאה בטעינת מוצרים:{" "}
                       {String(productsQuery.error?.message || "")}
@@ -423,6 +443,10 @@ export function StockPage({
                     const unit = stockUnitLabel(p.stock_unit);
                     return (
                       <tr key={p.id} className="hover:bg-slate-50">
+                        <td className="px-3 py-3 text-center text-xl">
+                          {cleanEmojiDisplay(p.emoji) || cleanEmojiDisplay(p.subcategory_emoji) || "—"}
+                        </td>
+
                         <td className="px-4 py-3 text-slate-900">
                           {p.name || "—"}
                         </td>
@@ -486,7 +510,7 @@ export function StockPage({
                   <tr>
                     <td
                       className="px-4 py-10 text-center text-slate-500"
-                      colSpan={7}
+                      colSpan={8}
                     >
                       אין תוצאות.
                     </td>

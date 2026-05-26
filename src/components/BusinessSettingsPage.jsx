@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Plus, RefreshCw, Save, Trash2 } from "lucide-react";
+import { Clock, Plus, RefreshCw, Save, Settings2, Trash2 } from "lucide-react";
 import { useBusinessSettings, useUpdateBusinessSettings } from "../lib/hooks";
 
 const DAYS = [
@@ -23,6 +23,10 @@ const EMPTY_INFO = {
   supports_pickup: true,
   kashrut: "",
   about: "",
+  min_order_amount: 0,
+  delivery_fee: 0,
+  cart_empty_reminder_minutes: 0,
+  stock_release_after_inactive_minutes: 0,
 };
 
 function emptyRegularHours() {
@@ -60,30 +64,94 @@ function newSpecialRow() {
   };
 }
 
-function Field({ label, children }) {
+const inputClass =
+  "w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-900 shadow-sm outline-none transition focus:border-slate-900 focus:ring-2 focus:ring-slate-100 disabled:bg-slate-50 disabled:text-slate-400";
+
+function Field({ label, help, children, className = "" }) {
   return (
-    <label className="grid gap-1 text-right">
-      <span className="text-xs font-bold text-slate-700">{label}</span>
+    <label className={`grid gap-1.5 text-right ${className}`}>
+      <span className="text-xs font-semibold text-slate-600">{label}</span>
       {children}
+      {help ? <span className="text-xs font-medium leading-5 text-slate-500">{help}</span> : null}
     </label>
   );
 }
 
 function TextInput(props) {
-  return (
-    <input
-      {...props}
-      className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:border-slate-900"
-    />
-  );
+  return <input {...props} className={inputClass} />;
 }
 
 function TextArea(props) {
+  return <textarea {...props} className={`${inputClass} min-h-24 resize-y leading-6`} />;
+}
+
+function NumberField({ label, value, onChange, unit, help }) {
   return (
-    <textarea
-      {...props}
-      className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:border-slate-900"
-    />
+    <Field label={label} help={help}>
+      <div className="relative max-w-[210px]">
+        <input
+          type="number"
+          min="0"
+          step="1"
+          value={value ?? 0}
+          onChange={(e) => onChange(e.target.value)}
+          className={`${inputClass} pe-12 text-left tabular-nums`}
+          dir="ltr"
+        />
+        <span className="pointer-events-none absolute inset-y-0 end-3 flex items-center text-xs font-semibold text-slate-500">
+          {unit}
+        </span>
+      </div>
+    </Field>
+  );
+}
+
+function ToggleCard({ label, checked, onChange }) {
+  return (
+    <label className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 shadow-sm">
+      <span>{label}</span>
+      <input
+        type="checkbox"
+        className="h-5 w-5 accent-slate-900"
+        checked={Boolean(checked)}
+        onChange={(e) => onChange(e.target.checked)}
+      />
+    </label>
+  );
+}
+
+function Section({ icon, title, subtitle, action, children }) {
+  const Icon = icon;
+  return (
+    <section className="card overflow-hidden p-5 sm:p-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex items-start gap-3 text-right">
+          {Icon ? (
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-md">
+              <Icon className="h-5 w-5" />
+            </div>
+          ) : null}
+          <div>
+            <div className="text-xl font-extrabold leading-tight text-slate-900">{title}</div>
+            {subtitle ? <div className="mt-1 text-sm font-semibold text-slate-500">{subtitle}</div> : null}
+          </div>
+        </div>
+        {action ? <div className="shrink-0">{action}</div> : null}
+      </div>
+      <div className="mt-5">{children}</div>
+    </section>
+  );
+}
+
+function Panel({ title, subtitle, children, className = "" }) {
+  return (
+    <div className={`rounded-2xl border border-slate-100 bg-slate-50/70 p-4 ${className}`}>
+      <div className="mb-4 text-right">
+        <div className="text-sm font-extrabold text-slate-900">{title}</div>
+        {subtitle ? <div className="mt-1 text-xs font-medium text-slate-500">{subtitle}</div> : null}
+      </div>
+      {children}
+    </div>
   );
 }
 
@@ -175,75 +243,116 @@ export function BusinessSettingsPage({ onNotify, onRegisterRefetch, onFetchingCh
     );
   }
 
+  const saveButton = (
+    <button className="btn-primary" onClick={save} disabled={!canSave}>
+      {saveSettings.isPending ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+      שמור שינויים
+    </button>
+  );
+
   return (
-    <div className="mt-6 grid gap-5" dir="rtl">
-      <div className="card p-5">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <div>
-            <div className="text-lg font-extrabold text-slate-900">פרטי עסק וסניף</div>
-            <div className="mt-1 text-sm text-slate-600">
-              המידע הזה משמש גם לתשובות של הבוט ללקוחות על כתובת, טלפון, כשרות ושעות פתיחה.
-            </div>
-          </div>
-
-          <button className="btn-primary sm:me-auto" onClick={save} disabled={!canSave}>
-            {saveSettings.isPending ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            שמור שינויים
-          </button>
-        </div>
-
+    <div className="mt-6 grid gap-4 text-slate-900" dir="rtl">
+      <Section
+        icon={Settings2}
+        title="פרטי עסק וסניף"
+        subtitle="המידע שהבוט והדשבורד משתמשים בו לכתובת, טלפון, כשרות, משלוחים ושעות פתיחה."
+        action={saveButton}
+      >
         {dirty ? (
-          <div className="mt-4 rounded-2xl border border-amber-100 bg-amber-50 p-3 text-sm font-semibold text-amber-900">
+          <div className="mb-4 rounded-xl border border-amber-100 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-900">
             יש שינויים שלא נשמרו
           </div>
         ) : null}
 
-        <div className="mt-5 grid gap-4 sm:grid-cols-2">
-          <Field label="שם הסניף">
-            <TextInput value={info.name || ""} onChange={(e) => changeInfo("name", e.target.value)} />
-          </Field>
-          <Field label="כתובת">
-            <TextInput value={info.address || ""} onChange={(e) => changeInfo("address", e.target.value)} />
-          </Field>
-          <Field label="קישור לגוגל מפות">
-            <TextInput value={info.google_maps_url || ""} onChange={(e) => changeInfo("google_maps_url", e.target.value)} placeholder="https://maps.google.com/..." dir="ltr" />
-          </Field>
-          <Field label="טלפון">
-            <TextInput value={info.phone || ""} onChange={(e) => changeInfo("phone", e.target.value)} dir="ltr" />
-          </Field>
-          <Field label="טלפון WhatsApp">
-            <TextInput value={info.whatsapp_phone || ""} onChange={(e) => changeInfo("whatsapp_phone", e.target.value)} dir="ltr" />
-          </Field>
-          <Field label="מייל">
-            <TextInput value={info.email || ""} onChange={(e) => changeInfo("email", e.target.value)} dir="ltr" />
-          </Field>
-          <Field label="סוג כשרות">
-            <TextInput value={info.kashrut || ""} onChange={(e) => changeInfo("kashrut", e.target.value)} placeholder="לדוגמה: רבנות / בד״ץ / ללא תעודה" />
-          </Field>
-          <div className="grid content-end gap-2 rounded-2xl border border-slate-100 bg-slate-50 p-3">
-            <label className="flex items-center justify-between gap-3 text-sm font-bold text-slate-700">
-              <span>תומך במשלוחים</span>
-              <input type="checkbox" className="h-5 w-5 accent-slate-900" checked={Boolean(info.supports_delivery)} onChange={(e) => changeInfo("supports_delivery", e.target.checked)} />
-            </label>
-            <label className="flex items-center justify-between gap-3 text-sm font-bold text-slate-700">
-              <span>תומך באיסוף עצמי</span>
-              <input type="checkbox" className="h-5 w-5 accent-slate-900" checked={Boolean(info.supports_pickup)} onChange={(e) => changeInfo("supports_pickup", e.target.checked)} />
-            </label>
-          </div>
-          <Field label="תיאור קצר על הסניף">
-            <TextArea rows={4} value={info.about || ""} onChange={(e) => changeInfo("about", e.target.value)} placeholder="כמה מילים על הסניף, השירותים, אזורי שירות וכו׳" />
-          </Field>
-        </div>
-      </div>
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(280px,0.8fr)]">
+          <Panel title="פרטי הסניף">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="שם הסניף">
+                <TextInput value={info.name || ""} onChange={(e) => changeInfo("name", e.target.value)} />
+              </Field>
+              <Field label="כתובת">
+                <TextInput value={info.address || ""} onChange={(e) => changeInfo("address", e.target.value)} />
+              </Field>
+              <Field label="קישור לגוגל מפות">
+                <TextInput value={info.google_maps_url || ""} onChange={(e) => changeInfo("google_maps_url", e.target.value)} placeholder="https://maps.google.com/..." dir="ltr" />
+              </Field>
+              <Field label="טלפון">
+                <TextInput value={info.phone || ""} onChange={(e) => changeInfo("phone", e.target.value)} dir="ltr" />
+              </Field>
+              <Field label="טלפון WhatsApp">
+                <TextInput value={info.whatsapp_phone || ""} onChange={(e) => changeInfo("whatsapp_phone", e.target.value)} dir="ltr" />
+              </Field>
+              <Field label="מייל">
+                <TextInput value={info.email || ""} onChange={(e) => changeInfo("email", e.target.value)} dir="ltr" />
+              </Field>
+              <Field label="סוג כשרות" className="sm:col-span-2">
+                <TextInput value={info.kashrut || ""} onChange={(e) => changeInfo("kashrut", e.target.value)} placeholder="לדוגמה: רבנות / בד״ץ / ללא תעודה" />
+              </Field>
+            </div>
+          </Panel>
 
-      <div className="card p-5">
-        <div className="text-lg font-extrabold text-slate-900">שעות פתיחה רגילות</div>
-        <div className="mt-4 grid gap-3">
+          <Panel title="הגדרות הזמנה ואוטומציה" subtitle="0 משאיר את ההגדרה כבויה.">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+              <NumberField
+                label="סכום מינימלי להזמנה"
+                unit="₪"
+                value={info.min_order_amount ?? 0}
+                onChange={(value) => changeInfo("min_order_amount", value)}
+              />
+              <NumberField
+                label="דמי משלוח"
+                unit="₪"
+                value={info.delivery_fee ?? 0}
+                onChange={(value) => changeInfo("delivery_fee", value)}
+              />
+              <NumberField
+                label="תזכורת לעגלה ריקה"
+                unit="דקות"
+                value={info.cart_empty_reminder_minutes ?? 0}
+                onChange={(value) => changeInfo("cart_empty_reminder_minutes", value)}
+                help="אחרי כמה זמן ללא הוספת מוצרים תישלח תזכורת. 0 = כבוי."
+              />
+              <NumberField
+                label="החזרת מוצרים למלאי"
+                unit="דקות"
+                value={info.stock_release_after_inactive_minutes ?? 0}
+                onChange={(value) => changeInfo("stock_release_after_inactive_minutes", value)}
+                help="אחרי כמה זמן שהעגלה לא השתנתה המוצרים יחזרו למלאי. 0 = כבוי."
+              />
+            </div>
+          </Panel>
+        </div>
+
+        <div className="mt-4 grid gap-4 xl:grid-cols-[320px_1fr]">
+          <Panel title="אפשרויות שירות">
+            <div className="grid gap-2">
+              <ToggleCard
+                label="תומך במשלוחים"
+                checked={info.supports_delivery}
+                onChange={(value) => changeInfo("supports_delivery", value)}
+              />
+              <ToggleCard
+                label="תומך באיסוף עצמי"
+                checked={info.supports_pickup}
+                onChange={(value) => changeInfo("supports_pickup", value)}
+              />
+            </div>
+          </Panel>
+          <Panel title="תיאור קצר על הסניף">
+            <Field label="מה יוצג לבוט בתשובות כלליות">
+              <TextArea rows={3} value={info.about || ""} onChange={(e) => changeInfo("about", e.target.value)} placeholder="כמה מילים על הסניף, השירותים, אזורי שירות וכו׳" />
+            </Field>
+          </Panel>
+        </div>
+      </Section>
+
+      <Section icon={Clock} title="שעות פתיחה רגילות" action={saveButton}>
+        <div className="grid gap-2">
           {regularHours.map((row) => {
             const day = DAYS.find((d) => d.value === row.day_of_week);
             return (
-              <div key={row.day_of_week} className="grid gap-3 rounded-2xl border border-slate-100 bg-slate-50 p-3 sm:grid-cols-[95px_110px_1fr_1fr_1.5fr] sm:items-center">
-                <div className="text-sm font-extrabold text-slate-900">{day?.label}</div>
+              <div key={row.day_of_week} className="grid gap-2 rounded-2xl border border-slate-100 bg-slate-50 p-3 sm:grid-cols-[90px_95px_120px_120px_1fr] sm:items-center">
+                <div className="text-sm font-semibold text-slate-900">{day?.label}</div>
                 <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
                   <input type="checkbox" className="h-5 w-5 accent-slate-900" checked={Boolean(row.is_closed)} onChange={(e) => changeRegular(row.day_of_week, "is_closed", e.target.checked)} />
                   סגור
@@ -255,30 +364,32 @@ export function BusinessSettingsPage({ onNotify, onRegisterRefetch, onFetchingCh
             );
           })}
         </div>
-      </div>
+      </Section>
 
-      <div className="card p-5">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <div>
-            <div className="text-lg font-extrabold text-slate-900">שעות פתיחה מיוחדות</div>
-            <div className="mt-1 text-sm text-slate-600">חגים, ערבי חג, ימי סגירה חריגים או שעות שונות מהרגיל.</div>
+      <Section
+        icon={Clock}
+        title="שעות פתיחה מיוחדות"
+        subtitle="חגים, ערבי חג, ימי סגירה חריגים או שעות שונות מהרגיל."
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              className="btn-outline"
+              onClick={() => {
+                setSpecialHours((prev) => [...prev, newSpecialRow()]);
+                setDirty(true);
+              }}
+            >
+              <Plus className="h-4 w-4" />
+              הוסף יום מיוחד
+            </button>
+            {saveButton}
           </div>
-          <button
-            className="btn-outline sm:me-auto"
-            onClick={() => {
-              setSpecialHours((prev) => [...prev, newSpecialRow()]);
-              setDirty(true);
-            }}
-          >
-            <Plus className="h-4 w-4" />
-            הוסף יום מיוחד
-          </button>
-        </div>
-
-        <div className="mt-4 grid gap-3">
+        }
+      >
+        <div className="grid gap-2">
           {specialHours.length ? (
             specialHours.map((row, index) => (
-              <div key={`${row.special_date || "new"}-${index}`} className="grid gap-3 rounded-2xl border border-slate-100 bg-slate-50 p-3 sm:grid-cols-[1fr_1fr_105px_1fr_1fr_1.5fr_auto] sm:items-center">
+              <div key={`${row.special_date || "new"}-${index}`} className="grid gap-2 rounded-2xl border border-slate-100 bg-slate-50 p-3 sm:grid-cols-[145px_1fr_90px_120px_120px_1fr_auto] sm:items-center">
                 <TextInput type="date" value={row.special_date || ""} onChange={(e) => changeSpecial(index, "special_date", e.target.value)} />
                 <TextInput value={row.label || ""} onChange={(e) => changeSpecial(index, "label", e.target.value)} placeholder="שם היום / חג" />
                 <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
@@ -306,7 +417,7 @@ export function BusinessSettingsPage({ onNotify, onRegisterRefetch, onFetchingCh
             </div>
           )}
         </div>
-      </div>
+      </Section>
     </div>
   );
 }

@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { RefreshCw } from "lucide-react";
-import { useOrders, useSetOrderStatus } from "./lib/hooks";
+import {
+  useBusinessSettings,
+  useOrders,
+  useSetOrderStatus,
+  useUpdateOrderItemPickerDetails,
+} from "./lib/hooks";
 import {
   getAuthToken,
   getDashboardMe,
@@ -90,6 +95,8 @@ function DashboardApp({ user, onLogout }) {
   } = useOrders(ALL_STATUSES);
 
   const setStatus = useSetOrderStatus();
+  const updateItemDetails = useUpdateOrderItemPickerDetails();
+  const businessSettings = useBusinessSettings();
 
   const notify = (kind, message) => setToast({ kind, message });
 
@@ -147,6 +154,10 @@ function DashboardApp({ user, onLogout }) {
     ? (setStatus.variables?.orderId ?? null)
     : null;
 
+  const busyItemId = updateItemDetails.isPending
+    ? (updateItemDetails.variables?.itemId ?? null)
+    : null;
+
   async function onStartPicking(order) {
     try {
       if (order.status !== "confirmed") return;
@@ -161,6 +172,34 @@ function DashboardApp({ user, onLogout }) {
     if (order.status !== "preparing") return;
     const note = (noteMap[order.id] ?? order.picker_note ?? "").trim();
     setConfirm({ open: true, order: { ...order, __note: note } });
+  }
+
+  async function onCompleteOrder(order) {
+    if (order.status !== "ready") return;
+
+    const ok = window.confirm(`להעביר את הזמנה #${order.id} להזמנות שנאספו?`);
+    if (!ok) return;
+
+    try {
+      await setStatus.mutateAsync({ orderId: order.id, status: "completed" });
+      notify("success", `הזמנה #${order.id} סומנה כנאספה`);
+    } catch (e) {
+      notify("error", e?.message || "שגיאה בסימון הזמנה כנאספה");
+    }
+  }
+
+  async function onUpdateItemDetails(order, itemId, details) {
+    try {
+      await updateItemDetails.mutateAsync({
+        orderId: order.id,
+        itemId,
+        suppliedAmount: details.suppliedAmount,
+        pickerNote: details.pickerNote,
+      });
+    } catch (e) {
+      notify("error", e?.message || "שגיאה בשמירת פרטי מוצר");
+      throw e;
+    }
   }
 
   async function confirmMarkReady() {
@@ -239,6 +278,7 @@ function DashboardApp({ user, onLogout }) {
           counts={counts}
           user={user}
           onLogout={onLogout}
+          shopInfo={businessSettings.data?.info}
           onRefresh={() => {
             if (activeTab === "stock") stockRefetch?.();
             else if (activeTab === "promotions") promotionsRefetch?.();
@@ -310,12 +350,17 @@ function DashboardApp({ user, onLogout }) {
                   key={order.id}
                   order={order}
                   busyOrderId={busyOrderId}
-                  busyItemId={null}
+                  busyItemId={busyItemId}
                   onStartPicking={() => onStartPicking(order)}
                   onMarkReady={() => requestMarkReady(order)}
+                  onMarkCompleted={() => onCompleteOrder(order)}
                   onToggleItem={(orderItemId, picked) =>
                     onToggleItem(order, orderItemId, picked)
                   }
+                  onUpdateItemDetails={(itemId, details) =>
+                    onUpdateItemDetails(order, itemId, details)
+                  }
+                  shopInfo={businessSettings.data?.info}
                   pickerNote={
                     order.status === "confirmed" || order.status === "preparing"
                       ? (noteMap[order.id] ?? order.picker_note ?? "")

@@ -8,6 +8,7 @@ import {
 import {
   getPickerOrders,
   setOrderStatus,
+  setOrderItemPickerDetails,
   getStockCategories,
   getStockProductsPage,
   createStockProduct,
@@ -37,6 +38,18 @@ export function useSetOrderStatus() {
   return useMutation({
     mutationFn: ({ orderId, status, pickerNote }) =>
       setOrderStatus(orderId, status, pickerNote),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["pickerOrders"] }),
+  });
+}
+
+export function useUpdateOrderItemPickerDetails() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ orderId, itemId, suppliedAmount, pickerNote }) =>
+      setOrderItemPickerDetails(orderId, itemId, {
+        supplied_amount: suppliedAmount,
+        picker_note: pickerNote,
+      }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["pickerOrders"] }),
   });
 }

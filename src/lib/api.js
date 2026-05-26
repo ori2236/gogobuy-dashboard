@@ -114,6 +114,10 @@ function normalizeItem(raw) {
     unit,
     sold_by_weight: soldByWeight,
     requested_units: raw.requested_units ?? raw.requestedUnits ?? null,
+    supplied_amount:
+      raw.supplied_amount ?? raw.suppliedAmount ?? raw.provided_amount ?? null,
+    picker_note:
+      raw.picker_note ?? raw.pickerNote ?? raw.item_picker_note ?? raw.itemPickerNote ?? null,
     picked: toBool(
       raw.picked ?? raw.is_picked ?? raw.isPicked ?? raw.picked_up,
       false,
@@ -164,10 +168,20 @@ export async function setOrderStatus(orderId, status, pickerNote) {
   const body = { status };
   if (pickerNote !== undefined) body.picker_note = pickerNote;
 
-  return await fetchJSON(`/api/dashboard/picker/orders/${orderId}/status`, {
+  return await fetchJSON(`/api/dashboard/picker/orders/${orderId}/status?shop_id=${SHOP_ID}`, {
     method: "PATCH",
     body: JSON.stringify(body),
   });
+}
+
+export async function setOrderItemPickerDetails(orderId, itemId, payload) {
+  return await fetchJSON(
+    `/api/dashboard/picker/orders/${orderId}/items/${itemId}?shop_id=${SHOP_ID}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(payload || {}),
+    },
+  );
 }
 
 export function getShopId() {
@@ -187,6 +201,9 @@ function normalizeStockProduct(raw) {
         ? null
         : Number(raw.stock_amount),
     stock_unit: raw.stock_unit ?? raw.stockUnit ?? null,
+    emoji: raw.emoji ?? raw.product_emoji ?? raw.productEmoji ?? null,
+    subcategory_emoji:
+      raw.subcategory_emoji ?? raw.subcategoryEmoji ?? raw.default_emoji ?? null,
     category: raw.category ?? null,
     sub_category: raw.sub_category ?? raw.subCategory ?? null,
     updated_at: raw.updated_at ?? raw.updatedAt ?? null,
@@ -348,6 +365,18 @@ function normalizeBusinessSettings(raw) {
       supports_pickup: toBool(info.supports_pickup ?? info.supportsPickup, true),
       kashrut: info.kashrut ?? "",
       about: info.about ?? "",
+      min_order_amount:
+        toNumberOrNull(info.min_order_amount ?? info.minOrderAmount) ?? 0,
+      delivery_fee: toNumberOrNull(info.delivery_fee ?? info.deliveryFee) ?? 0,
+      cart_empty_reminder_minutes:
+        toNumberOrNull(
+          info.cart_empty_reminder_minutes ?? info.cartEmptyReminderMinutes,
+        ) ?? 0,
+      stock_release_after_inactive_minutes:
+        toNumberOrNull(
+          info.stock_release_after_inactive_minutes ??
+            info.stockReleaseAfterInactiveMinutes,
+        ) ?? 0,
     },
     regular_hours: Array.isArray(raw.regular_hours) ? raw.regular_hours : [],
     special_hours: Array.isArray(raw.special_hours) ? raw.special_hours : [],

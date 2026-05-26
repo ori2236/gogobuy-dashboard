@@ -2,6 +2,24 @@
 import { useEffect, useMemo, useState } from "react";
 import { RefreshCw, PackagePlus, Pencil } from "lucide-react";
 
+function cleanEmojiDisplay(value) {
+  const s = String(value ?? "").trim();
+  if (!s || /^[?\uFFFD\s]+$/u.test(s)) return "";
+  return Array.from(s).slice(0, 8).join("");
+}
+
+function subName(row) {
+  return typeof row === "string" ? row : String(row?.name || "");
+}
+
+function subEmoji(row) {
+  return typeof row === "string" ? "" : cleanEmojiDisplay(row?.emoji);
+}
+
+function findSubMeta(categoriesMap, category, subCategory) {
+  return (categoriesMap?.[category] || []).find((x) => subName(x) === subCategory) || null;
+}
+
 export function StockProductModal({
   open,
   mode,
@@ -19,6 +37,7 @@ export function StockProductModal({
   const [stockAmount, setStockAmount] = useState("");
   const [category, setCategory] = useState("");
   const [subCategory, setSubCategory] = useState("");
+  const [emoji, setEmoji] = useState("");
   const [err, setErr] = useState("");
 
   const categoryList = useMemo(
@@ -31,7 +50,7 @@ export function StockProductModal({
     if (!category) return [];
     return (categoriesMap?.[category] || [])
       .slice()
-      .sort((a, b) => a.localeCompare(b, "he"));
+      .sort((a, b) => subName(a).localeCompare(subName(b), "he"));
   }, [categoriesMap, category]);
 
   useEffect(() => {
@@ -55,6 +74,7 @@ export function StockProductModal({
 
       setCategory(product.category || "");
       setSubCategory(product.sub_category || "");
+      setEmoji(cleanEmojiDisplay(product.emoji));
     } else {
       setName("");
       setDisplayNameEn("");
@@ -62,6 +82,7 @@ export function StockProductModal({
       setStockAmount("");
       setCategory("");
       setSubCategory("");
+      setEmoji("");
     }
   }, [open, isEdit, product]);
 
@@ -72,11 +93,16 @@ export function StockProductModal({
     }
     if (
       subCategory &&
-      !(categoriesMap?.[category] || []).includes(subCategory)
+      !(categoriesMap?.[category] || []).some((x) => subName(x) === subCategory)
     ) {
       setSubCategory("");
     }
   }, [category, subCategory, categoriesMap]);
+
+  const defaultEmoji = useMemo(() => {
+    if (!category || !subCategory) return "";
+    return subEmoji(findSubMeta(categoriesMap, category, subCategory));
+  }, [categoriesMap, category, subCategory]);
 
   if (!open) return null;
 
@@ -111,6 +137,7 @@ export function StockProductModal({
       stock_amount: Number(stockAmount),
       category,
       sub_category: subCategory,
+      emoji: cleanEmojiDisplay(emoji),
     });
   }
 
@@ -136,7 +163,7 @@ export function StockProductModal({
                 {isEdit ? "עריכת מוצר" : "הוספת מוצר"}
               </div>
               <div className="mt-1 text-sm text-slate-600">
-                עדכן שם, מחיר, מלאי וקטגוריות.
+                עדכן שם, מחיר, מלאי, קטגוריות ואימוג׳י שיופיע ליד המוצר.
               </div>
             </div>
           </div>
@@ -184,6 +211,24 @@ export function StockProductModal({
               </div>
 
               <div className="sm:col-span-4">
+                <div className="text-xs font-bold text-slate-700">אימוג׳י</div>
+                <input
+                  className="mt-2 w-full max-w-[120px] rounded-2xl bg-white px-3 py-2 text-center text-lg text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-slate-200"
+                  value={emoji}
+                  onChange={(e) => {
+                    setEmoji(e.target.value);
+                  }}
+                  placeholder={defaultEmoji || "🛒"}
+                  maxLength={16}
+                />
+                <div className="mt-1 text-[11px] font-semibold text-slate-500">
+                  {defaultEmoji
+                    ? `ריק = ברירת המחדל של תת-הקטגוריה (${defaultEmoji})`
+                    : "ריק = ברירת המחדל של תת-הקטגוריה"}
+                </div>
+              </div>
+
+              <div className="sm:col-span-4">
                 <div className="flex items-center justify-between">
                   <div className="text-xs font-bold text-slate-700">מלאי</div>
                 </div>
@@ -223,11 +268,15 @@ export function StockProductModal({
                   onChange={(e) => setSubCategory(e.target.value)}
                 >
                   <option value="">— בחר —</option>
-                  {subList.map((sc) => (
-                    <option key={sc} value={sc}>
-                      {sc}
-                    </option>
-                  ))}
+                  {subList.map((sc) => {
+                    const name = subName(sc);
+                    const icon = subEmoji(sc);
+                    return (
+                      <option key={name} value={name}>
+                        {icon ? `${icon} ` : ""}{name}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
             </div>

@@ -4,7 +4,7 @@ import logo from "../assets/gogobuy.ai.logo.png";
 import { loginDashboard } from "../lib/api";
 
 export function LoginPage({ onLogin }) {
-  const [username, setUsername] = useState("admin");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -26,16 +26,20 @@ export function LoginPage({ onLogin }) {
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-8" dir="rtl">
       <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-md items-center justify-center">
-        <form onSubmit={submit} className="card w-full overflow-hidden p-6 shadow-xl">
+        <form
+          onSubmit={submit}
+          className="card w-full overflow-hidden p-6 shadow-xl"
+        >
           <div className="text-center">
             <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-slate-900 p-3 shadow-md">
-              <img src={logo} alt="gogobuy" className="h-full w-full object-contain" />
+              <img
+                src={logo}
+                alt="gogobuy"
+                className="h-full w-full object-contain"
+              />
             </div>
             <div className="mt-5 text-2xl font-extrabold text-slate-900">
               כניסה לדשבורד
-            </div>
-            <div className="mt-1 text-sm text-slate-600">
-              רק משתמש מסוג מלקט יכול להיכנס
             </div>
           </div>
 
@@ -47,7 +51,7 @@ export function LoginPage({ onLogin }) {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 autoComplete="username"
-                placeholder="admin"
+                placeholder="הקלד שם משתמש"
                 disabled={busy}
               />
             </label>
@@ -73,14 +77,15 @@ export function LoginPage({ onLogin }) {
           ) : null}
 
           <button className="btn-primary mt-5 w-full py-3" disabled={busy}>
-            {busy ? <RefreshCw className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
-            התחבר
+            התחבר{" "}
+            {busy ? (
+              <RefreshCw className="h-4 w-4 animate-spin" />
+            ) : (
+              <LogIn className="h-4 w-4" />
+            )}
           </button>
 
-          <div className="mt-4 flex items-center justify-center gap-2 text-xs text-slate-500">
-            <LockKeyhole className="h-3.5 w-3.5" />
-            הגישה לשאר הדשבורד נחסמת עד התחברות
-          </div>
+          <div className="mt-4 flex items-center justify-center gap-2 text-xs text-slate-500"></div>
         </form>
       </div>
     </div>

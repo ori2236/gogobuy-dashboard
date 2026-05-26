@@ -106,8 +106,18 @@ export function ConfirmReadyModal({
                       ) : null}
                     </div>
 
-                    <div className="min-w-0 flex-1 truncate text-right text-sm font-semibold text-slate-900">
-                      {it.name}
+                    <div className="min-w-0 flex-1 text-right text-sm font-semibold text-slate-900">
+                      <div className="truncate">{it.name}</div>
+                      {(it.supplied_amount !== null && it.supplied_amount !== undefined && Number(it.supplied_amount) !== Number(it.amount)) || it.picker_note ? (
+                        <div className="mt-1 text-xs font-semibold text-amber-800">
+                          {it.supplied_amount !== null && it.supplied_amount !== undefined && Number(it.supplied_amount) !== Number(it.amount) ? (
+                            <span>סופק בפועל: {Number(it.supplied_amount).toFixed(3).replace(/\.?0+$/, "")} {it.unit || ""}</span>
+                          ) : null}
+                          {it.picker_note ? (
+                            <span className="block whitespace-pre-wrap">הערה: {it.picker_note}</span>
+                          ) : null}
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                 ))}

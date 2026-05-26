@@ -9,7 +9,6 @@ import {
   BadgePercent,
   Settings,
   LogOut,
-  UserRound,
 } from "lucide-react";
 import { cn } from "../lib/utils";
 import { getShopId } from "../lib/api";
@@ -51,8 +50,10 @@ export function TopBar({
   isRefreshing,
   user,
   onLogout,
+  shopInfo,
 }) {
   const shopId = getShopId();
+  const branchName = String(shopInfo?.name || "").trim();
 
   return (
     <div className="card p-5">
@@ -78,13 +79,9 @@ export function TopBar({
               </div>
 
               <div className="text-sm text-slate-600">
-                חנות <span className="font-semibold">#{user?.shop_id ?? shopId}</span>
-                {user?.username ? (
-                  <span className="me-2 inline-flex items-center gap-1 text-slate-500">
-                    <UserRound className="h-3.5 w-3.5" />
-                    {user.username}
-                  </span>
-                ) : null}
+                <span className="font-semibold">
+                  {branchName || `חנות #${user?.shop_id ?? shopId}`}
+                </span>
               </div>
             </div>
           </div>
