@@ -1,12 +1,34 @@
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
 const SHOP_ID = Number(import.meta.env.VITE_SHOP_ID || "1");
+const AUTH_TOKEN_KEY = "gogobuy_dashboard_token_v1";
+
+export function getAuthToken() {
+  try {
+    return localStorage.getItem(AUTH_TOKEN_KEY) || "";
+  } catch {
+    return "";
+  }
+}
+
+export function setAuthToken(token) {
+  localStorage.setItem(AUTH_TOKEN_KEY, token || "");
+}
+
+export function clearAuthToken() {
+  localStorage.removeItem(AUTH_TOKEN_KEY);
+}
 
 async function fetchJSON(path, init) {
   const url = API_BASE ? new URL(path, API_BASE).toString() : path;
+  const token = getAuthToken();
 
   const res = await fetch(url, {
-    headers: { "Content-Type": "application/json", ...(init?.headers || {}) },
     ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(init?.headers || {}),
+    },
   });
 
   const ct = res.headers.get("content-type") || "";
@@ -35,11 +57,33 @@ async function fetchJSON(path, init) {
       : (raw || `HTTP ${res.status}`).slice(0, 300);
   }
 
+  if (res.status === 401) {
+    clearAuthToken();
+    window.dispatchEvent(new CustomEvent("dashboard-auth-expired"));
+  }
+
   const err = new Error(msg);
   err.status = res.status;
   err.url = url;
   err.details = raw;
   throw err;
+}
+
+export async function loginDashboard(username, password) {
+  const res = await fetchJSON("/api/dashboard/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ username, password }),
+  });
+  if (res.token) setAuthToken(res.token);
+  return res;
+}
+
+export async function getDashboardMe() {
+  return await fetchJSON("/api/dashboard/auth/me");
+}
+
+export function logoutDashboard() {
+  clearAuthToken();
 }
 
 function toBool(v, fallback = false) {
@@ -87,6 +131,12 @@ function normalizeOrder(raw) {
     status: raw.status ?? "confirmed",
     created_at: raw.created_at ?? raw.createdAt,
     picker_note: raw.picker_note ?? raw.pickerNote ?? null,
+    customer_note_to_picker:
+      raw.customer_note_to_picker ??
+      raw.customerNoteToPicker ??
+      raw.customer_note ??
+      raw.customerNote ??
+      null,
     customer_name: raw.customer_name ?? raw.customerName ?? raw.name ?? null,
     customer_phone:
       raw.customer_phone ?? raw.customerPhone ?? raw.phone ?? null,
@@ -279,5 +329,39 @@ export async function updatePromotion(id, payload) {
 export async function deletePromotion(id) {
   return await fetchJSON(`/api/dashboard/promotions/${id}?shop_id=${SHOP_ID}`, {
     method: "DELETE",
+  });
+}
+
+
+function normalizeBusinessSettings(raw) {
+  const info = raw.info ?? raw.shop ?? {};
+  return {
+    info: {
+      shop_id: Number(info.shop_id ?? info.id ?? SHOP_ID),
+      name: info.name ?? "",
+      address: info.address ?? "",
+      google_maps_url: info.google_maps_url ?? info.googleMapsUrl ?? "",
+      phone: info.phone ?? "",
+      whatsapp_phone: info.whatsapp_phone ?? info.whatsappPhone ?? "",
+      email: info.email ?? "",
+      supports_delivery: toBool(info.supports_delivery ?? info.supportsDelivery, false),
+      supports_pickup: toBool(info.supports_pickup ?? info.supportsPickup, true),
+      kashrut: info.kashrut ?? "",
+      about: info.about ?? "",
+    },
+    regular_hours: Array.isArray(raw.regular_hours) ? raw.regular_hours : [],
+    special_hours: Array.isArray(raw.special_hours) ? raw.special_hours : [],
+  };
+}
+
+export async function getBusinessSettings() {
+  const res = await fetchJSON(`/api/dashboard/settings/business?shop_id=${SHOP_ID}`);
+  return normalizeBusinessSettings(res);
+}
+
+export async function updateBusinessSettings(payload) {
+  return await fetchJSON(`/api/dashboard/settings/business`, {
+    method: "PATCH",
+    body: JSON.stringify({ ...payload, shop_id: SHOP_ID }),
   });
 }

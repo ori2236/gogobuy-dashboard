@@ -18,6 +18,7 @@ export function ConfirmReadyModal({
 
   const items = order.items || [];
   const scrollItems = items.length > 4;
+  const customerNoteToPicker = (order.customer_note_to_picker || "").trim();
 
   return (
     <div
@@ -69,6 +70,15 @@ export function ConfirmReadyModal({
                 ) : null}
               </div>
             </div>
+
+            {customerNoteToPicker ? (
+              <div className="mt-4 rounded-2xl border border-amber-100 bg-amber-50 p-4 text-right" dir="rtl">
+                <div className="text-xs font-extrabold text-amber-900">הודעה מהלקוח למלקט</div>
+                <div className="mt-2 whitespace-pre-wrap text-sm font-semibold text-amber-950">
+                  {customerNoteToPicker}
+                </div>
+              </div>
+            ) : null}
 
             <div
               className={cn(

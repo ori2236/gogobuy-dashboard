@@ -17,6 +17,8 @@ import {
   createPromotion,
   updatePromotion,
   deletePromotion,
+  getBusinessSettings,
+  updateBusinessSettings,
 } from "./api";
 
 export function useOrders(statuses) {
@@ -186,5 +188,26 @@ export function useDeletePromotion() {
   return useMutation({
     mutationFn: (id) => deletePromotion(id),
     onSuccess: () => invalidateAfterPromotionChange(qc),
+  });
+}
+
+
+export function useBusinessSettings() {
+  return useQuery({
+    queryKey: ["businessSettings"],
+    queryFn: () => getBusinessSettings(),
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    staleTime: 30_000,
+  });
+}
+
+export function useUpdateBusinessSettings() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload) => updateBusinessSettings(payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["businessSettings"] });
+    },
   });
 }

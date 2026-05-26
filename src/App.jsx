@@ -1,5 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { RefreshCw } from "lucide-react";
 import { useOrders, useSetOrderStatus } from "./lib/hooks";
+import {
+  getAuthToken,
+  getDashboardMe,
+  logoutDashboard,
+} from "./lib/api";
 import { TopBar } from "./components/TopBar";
 import { OrderCard } from "./components/OrderCard";
 import { SkeletonCard } from "./components/Skeleton";
@@ -7,6 +13,8 @@ import { Toast } from "./components/Toast";
 import { ConfirmReadyModal } from "./components/ConfirmReadyModal";
 import { StockPage } from "./components/StockPage";
 import { PromotionsPage } from "./components/PromotionsPage";
+import { BusinessSettingsPage } from "./components/BusinessSettingsPage";
+import { LoginPage } from "./components/LoginPage";
 
 function sortOrders(orders, mode) {
   const time = (o) => (o.created_at ? new Date(o.created_at).getTime() : 0);
@@ -47,7 +55,7 @@ function saveNoteMap(map) {
   localStorage.setItem("picker_note_map_v1", JSON.stringify(map));
 }
 
-export default function App() {
+function DashboardApp({ user, onLogout }) {
   const [toast, setToast] = useState(null);
   const [pickedMap, setPickedMap] = useState(loadPickedMap);
   const [noteMap, setNoteMap] = useState(loadNoteMap);
@@ -57,6 +65,8 @@ export default function App() {
   const [stockIsFetching, setStockIsFetching] = useState(false);
   const [promotionsRefetch, setPromotionsRefetch] = useState(null);
   const [promotionsIsFetching, setPromotionsIsFetching] = useState(false);
+  const [settingsRefetch, setSettingsRefetch] = useState(null);
+  const [settingsIsFetching, setSettingsIsFetching] = useState(false);
 
   const registerStockRefetch = (fn) => {
     setStockRefetch(() => fn || null);
@@ -64,6 +74,10 @@ export default function App() {
 
   const registerPromotionsRefetch = (fn) => {
     setPromotionsRefetch(() => fn || null);
+  };
+
+  const registerSettingsRefetch = (fn) => {
+    setSettingsRefetch(() => fn || null);
   };
 
   const ALL_STATUSES = ["confirmed", "preparing", "ready", "completed"];
@@ -105,7 +119,7 @@ export default function App() {
   }, [normalized]);
 
   const visibleOrders = useMemo(() => {
-    if (activeTab === "stock" || activeTab === "promotions") return [];
+    if (activeTab === "stock" || activeTab === "promotions" || activeTab === "settings") return [];
 
     let base = normalized;
 
@@ -223,9 +237,12 @@ export default function App() {
           activeTab={activeTab}
           onTabChange={setActiveTab}
           counts={counts}
+          user={user}
+          onLogout={onLogout}
           onRefresh={() => {
             if (activeTab === "stock") stockRefetch?.();
             else if (activeTab === "promotions") promotionsRefetch?.();
+            else if (activeTab === "settings") settingsRefetch?.();
             else refetch();
           }}
           isRefreshing={
@@ -233,11 +250,13 @@ export default function App() {
               ? stockIsFetching
               : activeTab === "promotions"
                 ? promotionsIsFetching
-                : isFetching
+                : activeTab === "settings"
+                  ? settingsIsFetching
+                  : isFetching
           }
         />
 
-        {error ? (
+        {error && activeTab !== "stock" && activeTab !== "promotions" && activeTab !== "settings" ? (
           <div className="mt-4 rounded-2xl border border-rose-100 bg-rose-50 p-4 text-sm text-rose-900">
             <div className="font-extrabold">שגיאה בטעינת הזמנות</div>
             <div className="mt-1">{String(error.message || "")}</div>
@@ -271,6 +290,12 @@ export default function App() {
             onNotify={(kind, msg) => notify(kind, msg)}
             onRegisterRefetch={registerPromotionsRefetch}
             onFetchingChange={setPromotionsIsFetching}
+          />
+        ) : activeTab === "settings" ? (
+          <BusinessSettingsPage
+            onNotify={(kind, msg) => notify(kind, msg)}
+            onRegisterRefetch={registerSettingsRefetch}
+            onFetchingChange={setSettingsIsFetching}
           />
         ) : (
           <div className="mt-6 grid gap-5">
@@ -350,4 +375,59 @@ export default function App() {
       />
     </div>
   );
+}
+
+export default function App() {
+  const [authState, setAuthState] = useState({ checking: true, user: null });
+
+  useEffect(() => {
+    let alive = true;
+
+    async function bootstrap() {
+      if (!getAuthToken()) {
+        if (alive) setAuthState({ checking: false, user: null });
+        return;
+      }
+
+      try {
+        const res = await getDashboardMe();
+        if (alive) setAuthState({ checking: false, user: res.user || null });
+      } catch {
+        if (alive) setAuthState({ checking: false, user: null });
+      }
+    }
+
+    bootstrap();
+
+    const onExpired = () => setAuthState({ checking: false, user: null });
+    window.addEventListener("dashboard-auth-expired", onExpired);
+    return () => {
+      alive = false;
+      window.removeEventListener("dashboard-auth-expired", onExpired);
+    };
+  }, []);
+
+  function handleLogout() {
+    logoutDashboard();
+    setAuthState({ checking: false, user: null });
+  }
+
+  if (authState.checking) {
+    return (
+      <div className="min-h-screen bg-slate-50 px-4 py-8">
+        <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-md items-center justify-center text-slate-600">
+          <div className="card flex items-center gap-3 p-5 text-sm font-semibold">
+            <RefreshCw className="h-4 w-4 animate-spin" />
+            בודק התחברות…
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!authState.user) {
+    return <LoginPage onLogin={(user) => setAuthState({ checking: false, user })} />;
+  }
+
+  return <DashboardApp user={authState.user} onLogout={handleLogout} />;
 }

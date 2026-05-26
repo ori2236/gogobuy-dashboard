@@ -7,6 +7,9 @@ import {
   CheckCheck,
   Boxes,
   BadgePercent,
+  Settings,
+  LogOut,
+  UserRound,
 } from "lucide-react";
 import { cn } from "../lib/utils";
 import { getShopId } from "../lib/api";
@@ -46,6 +49,8 @@ export function TopBar({
   counts,
   onRefresh,
   isRefreshing,
+  user,
+  onLogout,
 }) {
   const shopId = getShopId();
 
@@ -73,12 +78,18 @@ export function TopBar({
               </div>
 
               <div className="text-sm text-slate-600">
-                חנות <span className="font-semibold">#{shopId}</span>
+                חנות <span className="font-semibold">#{user?.shop_id ?? shopId}</span>
+                {user?.username ? (
+                  <span className="me-2 inline-flex items-center gap-1 text-slate-500">
+                    <UserRound className="h-3.5 w-3.5" />
+                    {user.username}
+                  </span>
+                ) : null}
               </div>
             </div>
           </div>
 
-          <div className="ms-auto">
+          <div className="ms-auto flex flex-wrap items-center gap-2">
             <button
               className="btn-outline"
               onClick={onRefresh}
@@ -89,6 +100,10 @@ export function TopBar({
               />
               רענן
             </button>
+            <button className="btn-outline text-rose-700 hover:bg-rose-50" onClick={onLogout}>
+              <LogOut className="h-4 w-4" />
+              התנתק
+            </button>
           </div>
         </div>
 
@@ -96,6 +111,12 @@ export function TopBar({
           className="flex flex-wrap items-center justify-end gap-2"
           dir="ltr"
         >
+          <TabBtn
+            active={activeTab === "settings"}
+            onClick={() => onTabChange("settings")}
+            icon={Settings}
+            label="פרטי עסק"
+          />
           <TabBtn
             active={activeTab === "completed"}
             onClick={() => onTabChange("completed")}

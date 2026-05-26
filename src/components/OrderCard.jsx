@@ -32,6 +32,7 @@ export function OrderCard({
 
   const sentNote = (order.picker_note || "").trim();
   const hasSentNote = Boolean(sentNote);
+  const customerNoteToPicker = (order.customer_note_to_picker || "").trim();
 
   return (
     <div className="card overflow-hidden">
@@ -74,6 +75,15 @@ export function OrderCard({
                 className="h-2 rounded-full bg-emerald-500"
                 style={{ width: `${pct}%` }}
               />
+            </div>
+          </div>
+        ) : null}
+
+        {customerNoteToPicker ? (
+          <div className="mt-4 rounded-2xl border border-amber-100 bg-amber-50 p-4 text-right" dir="rtl">
+            <div className="text-xs font-extrabold text-amber-900">הודעה מהלקוח למלקט</div>
+            <div className="mt-2 whitespace-pre-wrap text-sm font-semibold text-amber-950">
+              {customerNoteToPicker}
             </div>
           </div>
         ) : null}
