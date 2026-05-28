@@ -4,6 +4,7 @@ import {
   Store,
   ClipboardList,
   Package,
+  Truck,
   CheckCheck,
   Boxes,
   BadgePercent,
@@ -118,14 +119,21 @@ export function TopBar({
             active={activeTab === "completed"}
             onClick={() => onTabChange("completed")}
             icon={CheckCheck}
-            label="הזמנות שנאספו"
+            label="הזמנות שהסתיימו"
             count={counts?.completed ?? 0}
+          />
+          <TabBtn
+            active={activeTab === "delivering"}
+            onClick={() => onTabChange("delivering")}
+            icon={Truck}
+            label="משלוחים בדרך"
+            count={counts?.delivering ?? 0}
           />
           <TabBtn
             active={activeTab === "ready"}
             onClick={() => onTabChange("ready")}
             icon={Package}
-            label="הזמנות מוכנות"
+            label="מוכנות לשליחה/איסוף"
             count={counts?.ready ?? 0}
           />
           <TabBtn

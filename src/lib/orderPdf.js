@@ -53,6 +53,8 @@ function buildPrintableHtml(order, shopInfo = {}) {
   const orderDate = formatDate(order.created_at || new Date());
   const createdAt = formatDateTime(order.created_at || new Date());
   const items = Array.isArray(order.items) ? order.items : [];
+  const isDelivery = String(order.fulfillment_method || "") === "delivery";
+  const fulfillmentLabel = isDelivery ? "משלוח עד הבית" : "איסוף עצמי";
 
   const rows = items
     .map((item, index) => {
@@ -65,7 +67,7 @@ function buildPrintableHtml(order, shopInfo = {}) {
       const supplied = qtyWithUnit(suppliedValue, unit);
       const note = String(item.picker_note || item.notes || "").trim();
       const changed = hasDifferentSuppliedAmount(item);
-      const extraNote = changed ? `סופק שונה מהמבוקש${note ? " — " : ""}` : "";
+      const extraNote = changed ? `סופק שונה מהמבוקש${note ? " - " : ""}` : "";
 
       return `
         <tr>
@@ -148,7 +150,7 @@ function buildPrintableHtml(order, shopInfo = {}) {
         }
         .details {
           display: grid;
-          grid-template-columns: 1fr 1fr 1fr;
+          grid-template-columns: 1fr 1fr 1fr 1fr;
           gap: 12px;
           margin-top: 24px;
         }
@@ -257,7 +259,18 @@ function buildPrintableHtml(order, shopInfo = {}) {
           <div class="label">טלפון</div>
           <div class="value" dir="ltr">${escapeHtml(customerPhone)}</div>
         </div>
+        <div class="field">
+          <div class="label">אופן קבלה</div>
+          <div class="value">${escapeHtml(fulfillmentLabel)}</div>
+        </div>
       </div>
+
+      ${isDelivery ? `
+        <div class="note-box">
+          <div class="label">פרטי משלוח</div>
+          <div class="value">כתובת: ${escapeHtml(order.delivery_address || "")}<br/>דמי משלוח: ₪${escapeHtml(Number(order.delivery_fee || 0).toFixed(2))}${order.delivery_notes ? `<br/>הערה לשליח: ${escapeHtml(order.delivery_notes)}` : ""}</div>
+        </div>
+      ` : ""}
 
       ${order.customer_note_to_picker ? `
         <div class="note-box">

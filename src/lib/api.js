@@ -146,6 +146,18 @@ function normalizeOrder(raw) {
       raw.customer_phone ?? raw.customerPhone ?? raw.phone ?? null,
     customer_notes:
       raw.customer_notes ?? raw.customerNotes ?? raw.notes ?? null,
+    fulfillment_method:
+      raw.fulfillment_method ?? raw.fulfillmentMethod ?? raw.delivery_method ?? raw.deliveryMethod ?? null,
+    delivery_address:
+      raw.delivery_address ?? raw.deliveryAddress ?? null,
+    delivery_fee:
+      raw.delivery_fee === null || raw.delivery_fee === undefined
+        ? 0
+        : Number(raw.delivery_fee),
+    delivery_notes:
+      raw.delivery_notes ?? raw.deliveryNotes ?? null,
+    price:
+      raw.price === null || raw.price === undefined ? null : Number(raw.price),
     items: Array.isArray(itemsRaw) ? itemsRaw.map(normalizeItem) : [],
   };
 }

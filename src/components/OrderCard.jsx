@@ -6,6 +6,7 @@ import {
   RefreshCw,
   Send,
   ShoppingBasket,
+  Truck,
 } from "lucide-react";
 import { cn, formatDateTime } from "../lib/utils";
 import { canMarkReady, pickedCount, progressPct } from "../lib/hooks";
@@ -19,6 +20,7 @@ export function OrderCard({
   busyItemId,
   onStartPicking,
   onMarkReady,
+  onMarkShipped,
   onMarkCompleted,
   onToggleItem,
   onUpdateItemDetails,
@@ -33,8 +35,10 @@ export function OrderCard({
   const isConfirmed = order.status === "confirmed";
   const isPreparing = order.status === "preparing";
   const isReady = order.status === "ready";
+  const isDelivering = order.status === "delivering";
   const isCompleted = order.status === "completed";
-  const readonly = isReady || isCompleted;
+  const isDelivery = order.fulfillment_method === "delivery";
+  const readonly = isReady || isDelivering || isCompleted;
   const itemDetailsEditable = isPreparing && !readonly;
 
   const showProgress = isConfirmed || isPreparing;
@@ -69,7 +73,7 @@ export function OrderCard({
             <div className="text-base font-bold">הזמנה #{order.id}</div>
           </div>
 
-          <StatusBadge status={order.status} />
+          <StatusBadge status={order.status} fulfillmentMethod={order.fulfillment_method} />
 
           <div className="ms-auto flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-600">
             {showName ? (
@@ -84,6 +88,31 @@ export function OrderCard({
               </span>
             ) : null}
           </div>
+        </div>
+
+        <div className="mt-4 grid gap-2 rounded-2xl border border-slate-100 bg-slate-50 p-3 text-right text-sm text-slate-700" dir="rtl">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-xs font-extrabold text-slate-500">אופן קבלה</span>
+            <span className="pill bg-white text-slate-800">
+              {isDelivery ? "📦 משלוח עד הבית" : "🛍️ איסוף עצמי"}
+            </span>
+          </div>
+          {isDelivery ? (
+            <>
+              {order.delivery_address ? (
+                <div className="whitespace-pre-wrap font-semibold">📍 {order.delivery_address}</div>
+              ) : null}
+              {order.delivery_notes ? (
+                <div className="whitespace-pre-wrap text-xs font-semibold text-slate-600">📝 הערה לשליח: {order.delivery_notes}</div>
+              ) : null}
+              {Number(order.delivery_fee || 0) > 0 ? (
+                <div className="text-xs font-bold text-slate-600">דמי משלוח: ₪{Number(order.delivery_fee || 0).toFixed(2)}</div>
+              ) : null}
+            </>
+          ) : null}
+          {order.price !== null && order.price !== undefined ? (
+            <div className="text-xs font-extrabold text-slate-700">סה״כ לתשלום: ₪{Number(order.price || 0).toFixed(2)}</div>
+          ) : null}
         </div>
 
         {showProgress ? (
@@ -175,7 +204,9 @@ export function OrderCard({
                 <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4 text-right">
                   <div className="text-xs font-bold text-slate-700">
                     {isCompleted
-                      ? "הערה שנשלחה ללקוח (הזמנה נאספה)"
+                      ? isDelivery
+                        ? "הערה שנשלחה ללקוח (הזמנה נמסרה)"
+                        : "הערה שנשלחה ללקוח (הזמנה נאספה)"
                       : "הערה שנשלחה ללקוח"}
                   </div>
                   <div className="mt-2 text-sm text-slate-700 whitespace-pre-wrap">
@@ -199,7 +230,23 @@ export function OrderCard({
                   הורד PDF
                 </button>
 
-                {isReady ? (
+                {isReady && isDelivery ? (
+                  <button
+                    className="btn-success"
+                    dir="rtl"
+                    onClick={onMarkShipped}
+                    disabled={busy}
+                  >
+                    {busy ? (
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Truck className="h-4 w-4" />
+                    )}
+                    סמן כנשלחה
+                  </button>
+                ) : null}
+
+                {isReady && !isDelivery ? (
                   <button
                     className="btn-success"
                     dir="rtl"
@@ -212,6 +259,22 @@ export function OrderCard({
                       <CheckCheck className="h-4 w-4" />
                     )}
                     סמן כנאספה
+                  </button>
+                ) : null}
+
+                {isDelivering ? (
+                  <button
+                    className="btn-success"
+                    dir="rtl"
+                    onClick={onMarkCompleted}
+                    disabled={busy}
+                  >
+                    {busy ? (
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <CheckCheck className="h-4 w-4" />
+                    )}
+                    סמן כנמסרה
                   </button>
                 ) : null}
               </div>
