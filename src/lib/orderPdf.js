@@ -1,15 +1,13 @@
+import logoUrl from "../assets/gogobuy.ai.logo.png";
+
 const A4_WIDTH_PT = 595.28;
 const A4_HEIGHT_PT = 841.89;
-const CANVAS_WIDTH_PX = 900;
-
-function escapeHtml(value) {
-  return String(value ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-}
+const PAGE_WIDTH = 900;
+const PAGE_HEIGHT = Math.round((PAGE_WIDTH * A4_HEIGHT_PT) / A4_WIDTH_PT);
+const SCALE = 2;
+const MARGIN = 46;
+const MIN_FORM_ROWS = 14;
+const ROWS_PER_PAGE = 14;
 
 function formatQty(value) {
   const n = Number(value);
@@ -37,6 +35,54 @@ function qtyWithUnit(value, unit) {
   return q ? `${q} ${unit || ""}`.trim() : "";
 }
 
+function formatMoney(value) {
+  const n = Number(value || 0);
+  return Number.isFinite(n) ? `₪${n.toFixed(2)}` : "₪0.00";
+}
+
+function formatLocalPhone(phone) {
+  const digits = String(phone || "").replace(/\D/g, "");
+  if (digits.startsWith("972") && digits.length >= 11) return `0${digits.slice(3)}`;
+  return phone || "";
+}
+
+function displayCustomerName(order) {
+  const name = String(order?.customer_name || "").trim();
+  const phone = String(order?.customer_phone || "").trim();
+  const nameDigits = name.replace(/\D/g, "");
+  const phoneDigits = phone.replace(/\D/g, "");
+  if (!name) return "";
+  if (name === phone) return "";
+  if (nameDigits && phoneDigits && nameDigits === phoneDigits) return "";
+  if (nameDigits && phoneDigits && phoneDigits.endsWith(nameDigits)) return "";
+  return name;
+}
+
+function extractBranchFromAddress(address) {
+  const raw = String(address || "").trim();
+  if (!raw) return "";
+  const known = ["לשם", "עלי הזהב", "ברוכין", "פדואל"];
+  return known.find((name) => raw.includes(name)) || "";
+}
+
+function shopTitle(shopInfo = {}) {
+  const chain = String(shopInfo.chain_name || shopInfo.chainName || shopInfo.network_name || shopInfo.brand_name || "").trim();
+  const branch = String(shopInfo.branch_name || shopInfo.branchName || "").trim() || extractBranchFromAddress(shopInfo.address);
+  const name = String(shopInfo.name || "").trim();
+  const base = chain || name || "טופס ליקוט פנימי";
+  if (branch && !base.includes(branch)) return `${base} - סניף ${branch}`;
+  return base;
+}
+
+function loadImage(src) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
+}
+
 function hasDifferentSuppliedAmount(item) {
   if (item.supplied_amount === null || item.supplied_amount === undefined || item.supplied_amount === "") {
     return false;
@@ -44,261 +90,6 @@ function hasDifferentSuppliedAmount(item) {
   const supplied = Number(item.supplied_amount);
   const requested = Number(item.amount);
   return Number.isFinite(supplied) && Number.isFinite(requested) && Math.abs(supplied - requested) >= 0.0005;
-}
-
-function buildPrintableHtml(order, shopInfo = {}) {
-  const shopName = shopInfo.name || "";
-  const customerName = (order.customer_name || "").trim();
-  const customerPhone = (order.customer_phone || "").trim();
-  const orderDate = formatDate(order.created_at || new Date());
-  const createdAt = formatDateTime(order.created_at || new Date());
-  const items = Array.isArray(order.items) ? order.items : [];
-  const isDelivery = String(order.fulfillment_method || "") === "delivery";
-  const fulfillmentLabel = isDelivery ? "משלוח עד הבית" : "איסוף עצמי";
-
-  const rows = items
-    .map((item, index) => {
-      const unit = item.unit || item.unit_label || (item.sold_by_weight ? 'ק"ג' : "יח'");
-      const requested = qtyWithUnit(item.amount, unit);
-      const suppliedValue =
-        item.supplied_amount !== null && item.supplied_amount !== undefined && item.supplied_amount !== ""
-          ? item.supplied_amount
-          : item.amount;
-      const supplied = qtyWithUnit(suppliedValue, unit);
-      const note = String(item.picker_note || item.notes || "").trim();
-      const changed = hasDifferentSuppliedAmount(item);
-      const extraNote = changed ? `סופק שונה מהמבוקש${note ? " - " : ""}` : "";
-
-      return `
-        <tr>
-          <td class="num">${index + 1}</td>
-          <td class="name">${escapeHtml(item.name || "")}</td>
-          <td>${escapeHtml(requested)}</td>
-          <td class="supplied ${changed ? "changed" : ""}">${escapeHtml(supplied)}</td>
-          <td class="note">${escapeHtml(`${extraNote}${note}`)}</td>
-        </tr>`;
-    })
-    .join("");
-
-  return `
-    <div class="pdf-root" dir="rtl">
-      <style>
-        .pdf-root {
-          box-sizing: border-box;
-          width: ${CANVAS_WIDTH_PX}px;
-          min-height: 1220px;
-          padding: 42px 44px;
-          background: #ffffff;
-          color: #0f172a;
-          font-family: Arial, "Noto Sans Hebrew", "Segoe UI", sans-serif;
-          direction: rtl;
-        }
-        .top-line {
-          display: flex;
-          align-items: flex-start;
-          justify-content: space-between;
-          gap: 22px;
-          border-bottom: 3px solid #0f172a;
-          padding-bottom: 18px;
-        }
-        .brand {
-          display: flex;
-          align-items: center;
-          gap: 14px;
-        }
-        .mark {
-          width: 54px;
-          height: 54px;
-          border-radius: 18px;
-          background: #0f172a;
-          color: #ffffff;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 26px;
-          font-weight: 900;
-        }
-        h1 {
-          margin: 0;
-          font-size: 30px;
-          line-height: 1.15;
-          font-weight: 900;
-        }
-        .subtitle {
-          margin-top: 6px;
-          color: #475569;
-          font-size: 15px;
-          font-weight: 700;
-        }
-        .order-box {
-          min-width: 210px;
-          border: 1px solid #cbd5e1;
-          border-radius: 18px;
-          padding: 14px 16px;
-          text-align: right;
-          background: #f8fafc;
-        }
-        .order-box .label {
-          font-size: 12px;
-          color: #64748b;
-          font-weight: 800;
-        }
-        .order-box .value {
-          margin-top: 4px;
-          font-size: 24px;
-          font-weight: 900;
-        }
-        .details {
-          display: grid;
-          grid-template-columns: 1fr 1fr 1fr 1fr;
-          gap: 12px;
-          margin-top: 24px;
-        }
-        .field {
-          border: 1px solid #dbe3ec;
-          border-radius: 16px;
-          padding: 12px 14px;
-          min-height: 58px;
-          background: #ffffff;
-        }
-        .field .label {
-          font-size: 12px;
-          color: #64748b;
-          font-weight: 900;
-        }
-        .field .value {
-          margin-top: 6px;
-          font-size: 16px;
-          font-weight: 800;
-          min-height: 20px;
-          word-break: break-word;
-        }
-        .note-box {
-          margin-top: 16px;
-          border: 1px solid #fde68a;
-          border-radius: 18px;
-          background: #fffbeb;
-          padding: 13px 16px;
-        }
-        .note-box .label {
-          color: #92400e;
-          font-size: 12px;
-          font-weight: 900;
-        }
-        .note-box .value {
-          margin-top: 6px;
-          white-space: pre-wrap;
-          font-size: 15px;
-          font-weight: 700;
-        }
-        table {
-          width: 100%;
-          border-collapse: collapse;
-          margin-top: 26px;
-          table-layout: fixed;
-          font-size: 14px;
-        }
-        th {
-          background: #0f172a;
-          color: #ffffff;
-          padding: 12px 10px;
-          border: 1px solid #0f172a;
-          font-size: 13px;
-          font-weight: 900;
-        }
-        td {
-          border: 1px solid #cbd5e1;
-          padding: 10px 10px;
-          vertical-align: top;
-          min-height: 34px;
-          overflow-wrap: anywhere;
-          font-weight: 650;
-        }
-        tbody tr:nth-child(even) td {
-          background: #f8fafc;
-        }
-        .num { width: 44px; text-align: center; font-weight: 900; }
-        .name { width: 285px; font-weight: 850; }
-        .supplied.changed { color: #be123c; font-weight: 900; }
-        .note { color: #334155; }
-        .footer {
-          margin-top: 24px;
-          display: flex;
-          justify-content: space-between;
-          gap: 18px;
-          color: #64748b;
-          font-size: 12px;
-          font-weight: 700;
-        }
-      </style>
-
-      <div class="top-line">
-        <div class="brand">
-          <div class="mark">G</div>
-          <div>
-            <h1>${escapeHtml(shopName || "טופס ליקוט הזמנה")}</h1>
-            <div class="subtitle">טופס ליקוט ממוחשב ומוכן להדפסה</div>
-          </div>
-        </div>
-        <div class="order-box">
-          <div class="label">מספר הזמנה</div>
-          <div class="value">#${escapeHtml(order.id)}</div>
-        </div>
-      </div>
-
-      <div class="details">
-        <div class="field">
-          <div class="label">שם הלקוח</div>
-          <div class="value">${escapeHtml(customerName)}</div>
-        </div>
-        <div class="field">
-          <div class="label">תאריך</div>
-          <div class="value">${escapeHtml(orderDate)}</div>
-        </div>
-        <div class="field">
-          <div class="label">טלפון</div>
-          <div class="value" dir="ltr">${escapeHtml(customerPhone)}</div>
-        </div>
-        <div class="field">
-          <div class="label">אופן קבלה</div>
-          <div class="value">${escapeHtml(fulfillmentLabel)}</div>
-        </div>
-      </div>
-
-      ${isDelivery ? `
-        <div class="note-box">
-          <div class="label">פרטי משלוח</div>
-          <div class="value">כתובת: ${escapeHtml(order.delivery_address || "")}<br/>דמי משלוח: ₪${escapeHtml(Number(order.delivery_fee || 0).toFixed(2))}${order.delivery_notes ? `<br/>הערה לשליח: ${escapeHtml(order.delivery_notes)}` : ""}</div>
-        </div>
-      ` : ""}
-
-      ${order.customer_note_to_picker ? `
-        <div class="note-box">
-          <div class="label">הודעה מהלקוח למלקט</div>
-          <div class="value">${escapeHtml(order.customer_note_to_picker)}</div>
-        </div>
-      ` : ""}
-
-      <table>
-        <thead>
-          <tr>
-            <th style="width: 46px;">מס׳</th>
-            <th>שם הפריט</th>
-            <th style="width: 150px;">כמות נדרשת ביחידות או ק״ג</th>
-            <th style="width: 145px;">כמות שסופקה</th>
-            <th style="width: 190px;">הערות</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${rows || `<tr><td colspan="5" style="text-align:center; padding: 30px;">אין פריטים להזמנה</td></tr>`}
-        </tbody>
-      </table>
-
-      <div class="footer">
-        <div>נוצר אוטומטית בדשבורד gogobuy.ai</div>
-        <div>${escapeHtml(createdAt)}</div>
-      </div>
-    </div>`;
 }
 
 function textBytes(str) {
@@ -373,92 +164,494 @@ function buildPdf(images) {
   return new Blob(parts, { type: "application/pdf" });
 }
 
+function createPageCanvas() {
+  const canvas = document.createElement("canvas");
+  canvas.width = PAGE_WIDTH * SCALE;
+  canvas.height = PAGE_HEIGHT * SCALE;
+  const ctx = canvas.getContext("2d");
+  ctx.scale(SCALE, SCALE);
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT);
+  ctx.textBaseline = "top";
+  ctx.direction = "rtl";
+  return { canvas, ctx };
+}
+
+function font(size, weight = 600) {
+  return `${weight} ${size}px Arial, "Noto Sans Hebrew", "Segoe UI", sans-serif`;
+}
+
+function roundedRect(ctx, x, y, w, h, r, fill, stroke = null, lineWidth = 1) {
+  const radius = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.lineTo(x + w - radius, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + radius);
+  ctx.lineTo(x + w, y + h - radius);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
+  ctx.lineTo(x + radius, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - radius);
+  ctx.lineTo(x, y + radius);
+  ctx.quadraticCurveTo(x, y, x + radius, y);
+  ctx.closePath();
+  if (fill) {
+    ctx.fillStyle = fill;
+    ctx.fill();
+  }
+  if (stroke) {
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = lineWidth;
+    ctx.stroke();
+  }
+}
+
+function setText(ctx, size, weight = 600, color = "#0f172a") {
+  ctx.font = font(size, weight);
+  ctx.fillStyle = color;
+}
+
+function wrapText(ctx, text, width) {
+  const paragraphs = String(text || "").split(/\r?\n/);
+  const lines = [];
+
+  for (const paragraph of paragraphs) {
+    const words = paragraph.trim().split(/\s+/).filter(Boolean);
+    if (!words.length) {
+      lines.push("");
+      continue;
+    }
+
+    let line = "";
+    for (const word of words) {
+      const candidate = line ? `${line} ${word}` : word;
+      if (ctx.measureText(candidate).width <= width || !line) {
+        line = candidate;
+      } else {
+        lines.push(line);
+        line = word;
+      }
+    }
+    if (line) lines.push(line);
+  }
+
+  return lines;
+}
+
+function drawRtl(ctx, text, right, y, width, options = {}) {
+  const {
+    size = 14,
+    weight = 600,
+    color = "#0f172a",
+    lineHeight = Math.round(size * 1.45),
+    maxLines = 1,
+  } = options;
+  setText(ctx, size, weight, color);
+  ctx.direction = "rtl";
+  ctx.textAlign = "right";
+
+  const lines = wrapText(ctx, text, width).slice(0, maxLines);
+  lines.forEach((line, idx) => {
+    const finalLine = idx === maxLines - 1 && wrapText(ctx, text, width).length > maxLines
+      ? `${line.replace(/\s+$/, "")}…`
+      : line;
+    ctx.fillText(finalLine, right, y + idx * lineHeight);
+  });
+
+  return lines.length * lineHeight;
+}
+
+function drawLtr(ctx, text, left, y, width, options = {}) {
+  const {
+    size = 14,
+    weight = 600,
+    color = "#0f172a",
+    align = "left",
+  } = options;
+  setText(ctx, size, weight, color);
+  ctx.direction = "ltr";
+  ctx.textAlign = align;
+  const x = align === "center" ? left + width / 2 : align === "right" ? left + width : left;
+  ctx.fillText(String(text || ""), x, y);
+  ctx.direction = "rtl";
+}
+
+function drawField(ctx, x, y, w, label, value, { ltr = false } = {}) {
+  roundedRect(ctx, x, y, w, 62, 14, "#f8fafc", "#e2e8f0");
+  drawRtl(ctx, label, x + w - 14, y + 10, w - 28, {
+    size: 11,
+    weight: 800,
+    color: "#64748b",
+  });
+  if (ltr) {
+    drawLtr(ctx, value, x + 14, y + 33, w - 28, {
+      size: 15,
+      weight: 800,
+      color: "#0f172a",
+      align: "left",
+    });
+  } else {
+    drawRtl(ctx, value, x + w - 14, y + 33, w - 28, {
+      size: 15,
+      weight: 800,
+      color: "#0f172a",
+    });
+  }
+}
+
+function drawHeader(ctx, order, shopInfo, pageNumber, totalPages, logoImage) {
+  const shopName = shopTitle(shopInfo);
+  const y = 36;
+  const right = PAGE_WIDTH - MARGIN;
+
+  roundedRect(ctx, right - 64, y, 64, 64, 18, "#0f172a");
+  if (logoImage) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect?.(right - 58, y + 6, 52, 52, 12);
+    ctx.clip?.();
+    ctx.drawImage(logoImage, right - 58, y + 6, 52, 52);
+    ctx.restore();
+  } else {
+    setText(ctx, 24, 900, "#ffffff");
+    ctx.textAlign = "center";
+    ctx.direction = "ltr";
+    ctx.fillText("G", right - 32, y + 17);
+    ctx.direction = "rtl";
+  }
+
+  drawRtl(ctx, shopName, right - 78, y + 2, 460, {
+    size: 27,
+    weight: 900,
+    color: "#0f172a",
+  });
+  drawRtl(ctx, "טופס ליקוט משודרג - להדפסה או שמירה", right - 78, y + 36, 460, {
+    size: 13,
+    weight: 700,
+    color: "#64748b",
+  });
+
+  roundedRect(ctx, MARGIN, y, 190, 58, 18, "#f8fafc", "#e2e8f0");
+  drawRtl(ctx, "מספר הזמנה", MARGIN + 174, y + 9, 160, {
+    size: 11,
+    weight: 800,
+    color: "#64748b",
+  });
+  drawLtr(ctx, `#${order.id || ""}`, MARGIN + 16, y + 29, 158, {
+    size: 22,
+    weight: 900,
+    color: "#0f172a",
+    align: "left",
+  });
+
+  ctx.strokeStyle = "#0f172a";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(MARGIN, y + 82);
+  ctx.lineTo(PAGE_WIDTH - MARGIN, y + 82);
+  ctx.stroke();
+
+  if (totalPages > 1) {
+    drawLtr(ctx, `${pageNumber}/${totalPages}`, MARGIN, y + 90, 70, {
+      size: 12,
+      weight: 800,
+      color: "#64748b",
+    });
+  }
+
+  return y + 104;
+}
+
+function drawOrderDetails(ctx, order, startY) {
+  const customerName = displayCustomerName(order);
+  const customerPhone = formatLocalPhone(String(order.customer_phone || "").trim());
+  const isDelivery = String(order.fulfillment_method || "") === "delivery";
+  const fulfillmentLabel = isDelivery ? "משלוח עד הבית" : "איסוף עצמי";
+  const tableW = PAGE_WIDTH - MARGIN * 2;
+  const gap = 10;
+  const boxW = (tableW - gap * 3) / 4;
+  let y = startY;
+
+  drawField(ctx, MARGIN + (boxW + gap) * 3, y, boxW, "שם הלקוח", customerName);
+  drawField(ctx, MARGIN + (boxW + gap) * 2, y, boxW, "תאריך", formatDate(order.created_at || new Date()));
+  drawField(ctx, MARGIN + (boxW + gap), y, boxW, "טלפון", customerPhone, { ltr: true });
+  drawField(ctx, MARGIN, y, boxW, "אופן קבלה", fulfillmentLabel);
+  y += 76;
+
+  roundedRect(ctx, MARGIN, y, tableW, 64, 16, "#f8fafc", "#e2e8f0");
+  drawRtl(ctx, "תשלום", PAGE_WIDTH - MARGIN - 16, y + 10, tableW - 32, {
+    size: 13,
+    weight: 900,
+    color: "#334155",
+  });
+  const paymentDetails = [
+    `מחיר כולל לתשלום: ${formatMoney(order.price)}`,
+    `דמי משלוח ששולמו: ${formatMoney(order.delivery_fee)}`,
+  ].join("   |   ");
+  drawRtl(ctx, paymentDetails, PAGE_WIDTH - MARGIN - 16, y + 35, tableW - 32, {
+    size: 15,
+    weight: 800,
+    color: "#0f172a",
+    maxLines: 1,
+  });
+  y += 78;
+
+  if (isDelivery) {
+    roundedRect(ctx, MARGIN, y, tableW, 72, 16, "#f8fafc", "#e2e8f0");
+    drawRtl(ctx, "פרטי משלוח", PAGE_WIDTH - MARGIN - 16, y + 10, tableW - 32, {
+      size: 12,
+      weight: 900,
+      color: "#334155",
+    });
+    const details = [
+      order.delivery_address ? `כתובת: ${order.delivery_address}` : "כתובת: -",
+      `דמי משלוח: ₪${Number(order.delivery_fee || 0).toFixed(2)}`,
+      order.delivery_notes ? `הערה לשליח: ${order.delivery_notes}` : "",
+    ].filter(Boolean).join("   |   ");
+    drawRtl(ctx, details, PAGE_WIDTH - MARGIN - 16, y + 35, tableW - 32, {
+      size: 14,
+      weight: 700,
+      color: "#0f172a",
+      maxLines: 2,
+      lineHeight: 18,
+    });
+    y += 86;
+  }
+
+  const customerNote = String(order.customer_note_to_picker || "").trim();
+  if (customerNote) {
+    roundedRect(ctx, MARGIN, y, tableW, 74, 16, "#fffdf6", "#fde68a");
+    drawRtl(ctx, "הערה מהלקוח למלקט", PAGE_WIDTH - MARGIN - 16, y + 10, tableW - 32, {
+      size: 13,
+      weight: 900,
+      color: "#92400e",
+    });
+    drawRtl(ctx, customerNote, PAGE_WIDTH - MARGIN - 16, y + 34, tableW - 32, {
+      size: 15,
+      weight: 700,
+      color: "#334155",
+      maxLines: 2,
+      lineHeight: 19,
+    });
+    y += 88;
+  }
+
+  const pickerNote = String(order.picker_note || "").trim();
+  if (pickerNote) {
+    roundedRect(ctx, MARGIN, y, tableW, 74, 16, "#f8fafc", "#cbd5e1");
+    drawRtl(ctx, "הערת המלקט ללקוח", PAGE_WIDTH - MARGIN - 16, y + 10, tableW - 32, {
+      size: 13,
+      weight: 900,
+      color: "#334155",
+    });
+    drawRtl(ctx, pickerNote, PAGE_WIDTH - MARGIN - 16, y + 34, tableW - 32, {
+      size: 15,
+      weight: 700,
+      color: "#0f172a",
+      maxLines: 2,
+      lineHeight: 19,
+    });
+    y += 88;
+  }
+
+  return y;
+}
+
+function buildRows(order) {
+  const items = Array.isArray(order.items) ? order.items : [];
+  const rows = [...items];
+  while (rows.length < MIN_FORM_ROWS) rows.push(null);
+  return rows;
+}
+
+function drawTable(ctx, rows, startIndex, y) {
+  const tableW = PAGE_WIDTH - MARGIN * 2;
+  const rowH = 50;
+  const headerH = 44;
+  const cols = [
+    { key: "num", title: "מס׳", w: 48 },
+    { key: "name", title: "שם הפריט", w: 280 },
+    { key: "requested", title: "כמות נדרשת", w: 150 },
+    { key: "supplied", title: "כמות שסופקה", w: 150 },
+    { key: "note", title: "הערות", w: tableW - 48 - 280 - 150 - 150 },
+  ];
+
+  let xRight = PAGE_WIDTH - MARGIN;
+  for (const col of cols) {
+    const x = xRight - col.w;
+    roundedRect(ctx, x, y, col.w, headerH, 0, "#0f172a", "#0f172a");
+    drawRtl(ctx, col.title, x + col.w - 10, y + 12, col.w - 20, {
+      size: 14,
+      weight: 900,
+      color: "#ffffff",
+    });
+    xRight = x;
+  }
+
+  rows.forEach((item, idx) => {
+    const rowY = y + headerH + idx * rowH;
+    const rowFill = idx % 2 ? "#ffffff" : "#f8fafc";
+    let cellRight = PAGE_WIDTH - MARGIN;
+
+    const unit = item ? item.unit || item.unit_label || (item.sold_by_weight ? 'ק"ג' : "יח'") : "";
+    const requested = item ? qtyWithUnit(item.amount, unit) : "";
+    const requestedUnits = item?.requested_units != null ? formatQty(item.requested_units) : "";
+    const supplied = item?.supplied_amount != null ? qtyWithUnit(item.supplied_amount, unit) : "";
+    const changed = item ? hasDifferentSuppliedAmount(item) : false;
+    const note = item ? (item.picker_note || "") : "";
+
+    const values = {
+      num: String(startIndex + idx + 1),
+      name: item?.name || "",
+      requested: requestedUnits ? `${requested} (${requestedUnits} יח')` : requested,
+      supplied,
+      note,
+    };
+
+    for (const col of cols) {
+      const x = cellRight - col.w;
+      ctx.fillStyle = rowFill;
+      ctx.fillRect(x, rowY, col.w, rowH);
+      ctx.strokeStyle = "#cbd5e1";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x, rowY, col.w, rowH);
+
+      if (col.key === "num") {
+        drawLtr(ctx, values.num, x, rowY + 14, col.w, {
+          size: 15,
+          weight: 900,
+          color: "#0f172a",
+          align: "center",
+        });
+      } else {
+        const color = col.key === "supplied" && changed ? "#be123c" : "#0f172a";
+        drawRtl(ctx, values[col.key], x + col.w - 9, rowY + 10, col.w - 18, {
+          size: col.key === "name" ? 15 : 14,
+          weight: col.key === "name" ? 850 : 750,
+          color,
+          maxLines: 2,
+          lineHeight: 18,
+        });
+      }
+
+      cellRight = x;
+    }
+  });
+
+  return y + headerH + rows.length * rowH;
+}
+
+function drawFooter(ctx, pageNumber, totalPages) {
+  const y = PAGE_HEIGHT - 40;
+  ctx.strokeStyle = "#e2e8f0";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(MARGIN, y - 12);
+  ctx.lineTo(PAGE_WIDTH - MARGIN, y - 12);
+  ctx.stroke();
+
+  drawRtl(ctx, "נוצר אוטומטית בדשבורד gogobuy.ai", PAGE_WIDTH - MARGIN, y, 360, {
+    size: 11,
+    weight: 700,
+    color: "#64748b",
+  });
+  drawLtr(ctx, `${formatDateTime(new Date())}   |   עמוד ${pageNumber}/${totalPages}`, MARGIN, y, 360, {
+    size: 11,
+    weight: 700,
+    color: "#64748b",
+  });
+}
+
 function canvasToJpegBytes(canvas) {
   const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
   return dataUrlToBytes(dataUrl);
 }
 
-async function renderHtmlToCanvas(html) {
-  const holder = document.createElement("div");
-  holder.style.position = "fixed";
-  holder.style.left = "-10000px";
-  holder.style.top = "0";
-  holder.style.width = `${CANVAS_WIDTH_PX}px`;
-  holder.innerHTML = html;
-  document.body.appendChild(holder);
+function buildCanvases(order, shopInfo, logoImage) {
+  const allRows = buildRows(order);
+  const tableHeaderH = 44;
+  const tableRowH = 50;
+  const maxTableBottom = PAGE_HEIGHT - 72;
 
-  if (document.fonts?.ready) {
-    await document.fonts.ready.catch(() => null);
+  const preview = createPageCanvas();
+  let firstY = drawHeader(preview.ctx, order, shopInfo, 1, 1, logoImage);
+  firstY = drawOrderDetails(preview.ctx, order, firstY) + 10;
+  const firstPageCapacity = Math.max(
+    1,
+    Math.min(
+      ROWS_PER_PAGE,
+      Math.floor((maxTableBottom - firstY - tableHeaderH) / tableRowH),
+    ),
+  );
+
+  const chunks = [];
+  chunks.push(allRows.slice(0, firstPageCapacity));
+  for (let i = firstPageCapacity; i < allRows.length; i += ROWS_PER_PAGE) {
+    chunks.push(allRows.slice(i, i + ROWS_PER_PAGE));
   }
 
-  const height = Math.max(1220, Math.ceil(holder.scrollHeight + 8));
-  const xhtml = holder.innerHTML;
-  document.body.removeChild(holder);
+  return chunks.map((chunk, index) => {
+    const { canvas, ctx } = createPageCanvas();
+    const pageNumber = index + 1;
+    const totalPages = chunks.length;
+    let y = drawHeader(ctx, order, shopInfo, pageNumber, totalPages, logoImage);
 
-  const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="${CANVAS_WIDTH_PX}" height="${height}">
-      <foreignObject width="100%" height="100%">
-        <div xmlns="http://www.w3.org/1999/xhtml">${xhtml}</div>
-      </foreignObject>
-    </svg>`;
+    if (index === 0) {
+      y = drawOrderDetails(ctx, order, y);
+    } else {
+      roundedRect(ctx, MARGIN, y, PAGE_WIDTH - MARGIN * 2, 46, 14, "#f8fafc", "#e2e8f0");
+      drawRtl(ctx, "המשך טופס ליקוט", PAGE_WIDTH - MARGIN - 16, y + 13, 420, {
+        size: 15,
+        weight: 900,
+        color: "#334155",
+      });
+      y += 62;
+    }
 
-  const svgBlob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
-  const url = URL.createObjectURL(svgBlob);
-
-  try {
-    const img = new Image();
-    img.decoding = "async";
-    const loaded = new Promise((resolve, reject) => {
-      img.onload = resolve;
-      img.onerror = reject;
-    });
-    img.src = url;
-    await loaded;
-
-    const scale = Math.max(2, Math.min(3, window.devicePixelRatio || 2));
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.ceil(CANVAS_WIDTH_PX * scale);
-    canvas.height = Math.ceil(height * scale);
-    const ctx = canvas.getContext("2d");
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    y += 10;
+    drawTable(ctx, chunk, index === 0 ? 0 : firstPageCapacity + (index - 1) * ROWS_PER_PAGE, y);
+    drawFooter(ctx, pageNumber, totalPages);
     return canvas;
-  } finally {
-    URL.revokeObjectURL(url);
-  }
+  });
 }
 
-function splitCanvasToPages(canvas) {
-  const pageHeight = Math.floor((canvas.width * A4_HEIGHT_PT) / A4_WIDTH_PT);
-  const pages = [];
+function openPdfPreview(url, fileName) {
+  const previewUrl = `${url}#toolbar=0&navpanes=0&view=FitH`;
 
-  for (let y = 0; y < canvas.height; y += pageHeight) {
-    const pageCanvas = document.createElement("canvas");
-    pageCanvas.width = canvas.width;
-    pageCanvas.height = pageHeight;
-    const ctx = pageCanvas.getContext("2d");
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
-    ctx.drawImage(
-      canvas,
-      0,
-      y,
-      canvas.width,
-      Math.min(pageHeight, canvas.height - y),
-      0,
-      0,
-      pageCanvas.width,
-      Math.min(pageHeight, canvas.height - y),
-    );
-    pages.push({
-      width: pageCanvas.width,
-      height: pageCanvas.height,
-      bytes: canvasToJpegBytes(pageCanvas),
-    });
+  try {
+    const win = window.open("", "_blank");
+    if (!win) {
+      window.open(previewUrl, "_blank", "noopener,noreferrer");
+      return;
+    }
+
+    win.document.write(`<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <title>${fileName}</title>
+  <style>
+    html, body { margin:0; width:100%; height:100%; background:#f8fafc; overflow:hidden; font-family: Arial, system-ui, sans-serif; }
+    .bar { height:46px; display:flex; align-items:center; justify-content:space-between; padding:0 16px; box-sizing:border-box; background:white; border-bottom:1px solid #e2e8f0; color:#0f172a; font-weight:800; }
+    .bar a { color:#0f172a; text-decoration:none; border:1px solid #cbd5e1; border-radius:12px; padding:7px 12px; font-size:13px; }
+    .viewer { width:100%; height:calc(100% - 46px); border:0; display:block; }
+  </style>
+</head>
+<body>
+  <div class="bar">
+    <div>תצוגת PDF</div>
+    <a href="${url}" download="${fileName}">הורד שוב</a>
+  </div>
+  <iframe class="viewer" src="${previewUrl}" title="PDF"></iframe>
+</body>
+</html>`);
+    win.document.close();
+  } catch {
+    try {
+      window.open(previewUrl, "_blank", "noopener,noreferrer");
+    } catch {
+      // Browsers can block auto-open. The PDF is still downloaded.
+    }
   }
-
-  return pages;
 }
 
 function downloadBlob(blob, fileName) {
@@ -469,27 +662,26 @@ function downloadBlob(blob, fileName) {
   document.body.appendChild(a);
   a.click();
   a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
 
-function openPrintableFallback(html) {
-  const w = window.open("", "_blank", "noopener,noreferrer,width=980,height=1200");
-  if (!w) return;
-  w.document.write(`<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><title>טופס הזמנה</title></head><body>${html}<script>window.onload=function(){setTimeout(function(){window.print()},250)}<\/script></body></html>`);
-  w.document.close();
+  openPdfPreview(url, fileName);
+
+  setTimeout(() => URL.revokeObjectURL(url), 120_000);
 }
 
 export async function downloadOrderPdf(order, shopInfo = {}) {
-  const html = buildPrintableHtml(order, shopInfo);
-  const fileName = `gogobuy-order-${order.id || ""}.pdf`;
+  const fileName = `gogobuy-picking-form-${order.id || ""}.pdf`;
 
-  try {
-    const canvas = await renderHtmlToCanvas(html);
-    const pages = splitCanvasToPages(canvas);
-    const pdf = buildPdf(pages);
-    downloadBlob(pdf, fileName);
-  } catch (err) {
-    console.error("[downloadOrderPdf] PDF generation failed, opening printable fallback", err);
-    openPrintableFallback(html);
+  if (document.fonts?.ready) {
+    await document.fonts.ready.catch(() => null);
   }
+
+  const logoImage = await loadImage(logoUrl);
+  const canvases = buildCanvases(order, shopInfo, logoImage);
+  const pages = canvases.map((canvas) => ({
+    width: canvas.width,
+    height: canvas.height,
+    bytes: canvasToJpegBytes(canvas),
+  }));
+  const pdf = buildPdf(pages);
+  downloadBlob(pdf, fileName);
 }

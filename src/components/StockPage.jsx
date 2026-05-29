@@ -111,11 +111,13 @@ function fmtStockAmount(v) {
 }
 
 export function StockPage({
+  user,
   onNotify,
   onOrdersChanged,
   onRegisterRefetch,
   onFetchingChange,
 }) {
+  const canManageProducts = user?.role === "admin";
   const initial = useMemo(() => loadFilters(), []);
   const [category, setCategory] = useState(initial.category);
   const [subCategory, setSubCategory] = useState(initial.subCategory);
@@ -294,26 +296,32 @@ export function StockPage({
 
             <div className="min-w-0 flex-1 text-right">
               <div className="text-xl font-extrabold leading-tight">
-                ניהול מלאי
+                מלאי
               </div>
               <div className="mt-1 text-sm text-slate-600">
-                חיפוש וסינון מוצרים ועדכון ידני של שם / מחיר / מלאי / קטגוריות.
+                חיפוש וסינון מוצרים. מנהל יכול להוסיף, למחוק ולערוך מוצרים.
               </div>
             </div>
           </div>
 
-          <div className="flex items-center justify-end gap-2">
-            <button
-              className="btn-success"
-              onClick={() =>
-                setModal({ open: true, mode: "create", product: null })
-              }
-              disabled={busy}
-            >
-              <Plus className="h-4 w-4" />
-              הוסף מוצר
-            </button>
-          </div>
+          {canManageProducts ? (
+            <div className="flex items-center justify-end gap-2">
+              <button
+                className="btn-success"
+                onClick={() =>
+                  setModal({ open: true, mode: "create", product: null })
+                }
+                disabled={busy}
+              >
+                <Plus className="h-4 w-4" />
+                הוסף מוצר
+              </button>
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-600">
+              משתמש רגיל יכול לצפות במלאי, אבל רק מנהל יכול להוסיף, לערוך או למחוק מוצרים.
+            </div>
+          )}
         </div>
 
         {/* Filters */}
@@ -479,28 +487,36 @@ export function StockPage({
 
                         <td className="px-3 py-3">
                           <div className="flex items-center justify-end gap-2 whitespace-nowrap">
-                            <button
-                              className="btn-secondary"
-                              disabled={busy}
-                              onClick={() =>
-                                setModal({
-                                  open: true,
-                                  mode: "edit",
-                                  product: p,
-                                })
-                              }
-                            >
-                              עריכה
-                            </button>
-                            <button
-                              className="btn-outline"
-                              disabled={busy}
-                              onClick={() =>
-                                setConfirmDel({ open: true, product: p })
-                              }
-                            >
-                              מחיקה
-                            </button>
+                            {canManageProducts ? (
+                              <>
+                                <button
+                                  className="btn-secondary"
+                                  disabled={busy}
+                                  onClick={() =>
+                                    setModal({
+                                      open: true,
+                                      mode: "edit",
+                                      product: p,
+                                    })
+                                  }
+                                >
+                                  עריכה
+                                </button>
+                                <button
+                                  className="btn-outline"
+                                  disabled={busy}
+                                  onClick={() =>
+                                    setConfirmDel({ open: true, product: p })
+                                  }
+                                >
+                                  מחיקה
+                                </button>
+                              </>
+                            ) : (
+                              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-500">
+                                צפייה בלבד
+                              </span>
+                            )}
                           </div>
                         </td>
                       </tr>

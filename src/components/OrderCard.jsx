@@ -14,6 +14,12 @@ import { downloadOrderPdf } from "../lib/orderPdf";
 import { StatusBadge } from "./StatusBadge";
 import { OrderItemRow } from "./OrderItemRow";
 
+function formatLocalPhone(phone) {
+  const digits = String(phone || "").replace(/\D/g, "");
+  if (digits.startsWith("972") && digits.length >= 11) return `0${digits.slice(3)}`;
+  return phone || "";
+}
+
 export function OrderCard({
   order,
   busyOrderId,
@@ -30,6 +36,7 @@ export function OrderCard({
 }) {
   const [pdfBusy, setPdfBusy] = useState(false);
   const [openDetailsItemId, setOpenDetailsItemId] = useState(null);
+  const [detailsExpanded, setDetailsExpanded] = useState(false);
   const busy = busyOrderId === order.id;
 
   const isConfirmed = order.status === "confirmed";
@@ -40,6 +47,8 @@ export function OrderCard({
   const isDelivery = order.fulfillment_method === "delivery";
   const readonly = isReady || isDelivering || isCompleted;
   const itemDetailsEditable = isPreparing && !readonly;
+  const compactEligible = isReady || isDelivering || isCompleted;
+  const compactCollapsed = compactEligible && !detailsExpanded;
 
   const showProgress = isConfirmed || isPreparing;
 
@@ -49,6 +58,7 @@ export function OrderCard({
 
   const name = (order.customer_name || "").trim();
   const phone = (order.customer_phone || "").trim();
+  const displayPhone = formatLocalPhone(phone);
   const showName = Boolean(name) && name !== phone;
 
   const sentNote = (order.picker_note || "").trim();
@@ -59,13 +69,109 @@ export function OrderCard({
     try {
       setPdfBusy(true);
       await downloadOrderPdf(order, shopInfo || {});
+    } catch (err) {
+      console.error("[OrderCard.handleDownloadPdf]", err);
+      alert("לא הצלחנו ליצור PDF להזמנה. נסה לרענן את הדשבורד ולנסות שוב.");
     } finally {
       setPdfBusy(false);
     }
   }
 
+  function renderReadonlyActions() {
+    return (
+      <div className="flex flex-col gap-2 sm:flex-row sm:justify-start" dir="ltr">
+        <button
+          className="btn-outline"
+          dir="rtl"
+          onClick={handleDownloadPdf}
+          disabled={pdfBusy}
+        >
+          {pdfBusy ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+          הורד PDF
+        </button>
+
+        {compactCollapsed ? (
+          <button className="btn-outline" dir="rtl" onClick={() => setDetailsExpanded(true)}>
+            הצג פרטים
+          </button>
+        ) : compactEligible ? (
+          <button className="btn-outline" dir="rtl" onClick={() => setDetailsExpanded(false)}>
+            הסתר פרטים
+          </button>
+        ) : null}
+
+        {isReady && isDelivery ? (
+          <button className="btn-success" dir="rtl" onClick={onMarkShipped} disabled={busy}>
+            {busy ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Truck className="h-4 w-4" />}
+            סמן כנשלחה
+          </button>
+        ) : null}
+
+        {isReady && !isDelivery ? (
+          <button className="btn-success" dir="rtl" onClick={onMarkCompleted} disabled={busy}>
+            {busy ? <RefreshCw className="h-4 w-4 animate-spin" /> : <CheckCheck className="h-4 w-4" />}
+            סמן כנאספה
+          </button>
+        ) : null}
+
+        {isDelivering ? (
+          <button className="btn-success" dir="rtl" onClick={onMarkCompleted} disabled={busy}>
+            {busy ? <RefreshCw className="h-4 w-4 animate-spin" /> : <CheckCheck className="h-4 w-4" />}
+            סמן כנמסרה
+          </button>
+        ) : null}
+      </div>
+    );
+  }
+
+  if (compactCollapsed) {
+    return (
+      <div className="card overflow-hidden p-4 font-sans">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2">
+            <ShoppingBasket className="h-5 w-5 text-slate-700" />
+            <div className="text-base font-bold">הזמנה #{order.id}</div>
+          </div>
+          <StatusBadge status={order.status} fulfillmentMethod={order.fulfillment_method} />
+
+          <div className="ms-auto flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-600">
+            {showName ? <span className="pill bg-slate-100 text-slate-700">{name}</span> : null}
+            {displayPhone ? <span className="pill bg-slate-100 text-slate-700">{displayPhone}</span> : null}
+            {order.created_at ? <span className="pill bg-slate-100 text-slate-700">{formatDateTime(order.created_at)}</span> : null}
+          </div>
+        </div>
+
+        <div className="mt-3 grid gap-2 rounded-2xl border border-slate-100 bg-slate-50 p-3 text-right text-sm text-slate-700 sm:grid-cols-3" dir="rtl">
+          <div>
+            <div className="text-xs font-extrabold text-slate-500">אופן קבלה</div>
+            <div className="mt-1 font-bold text-slate-900">{isDelivery ? "משלוח עד הבית" : "איסוף עצמי"}</div>
+          </div>
+          {isDelivery ? (
+            <div className="sm:col-span-1">
+              <div className="text-xs font-extrabold text-slate-500">כתובת</div>
+              <div className="mt-1 line-clamp-1 font-bold text-slate-900">{order.delivery_address || "-"}</div>
+            </div>
+          ) : null}
+          <div>
+            <div className="text-xs font-extrabold text-slate-500">סה״כ לתשלום</div>
+            <div className="mt-1 font-bold text-slate-900">{order.price != null ? `₪${Number(order.price || 0).toFixed(2)}` : "-"}</div>
+          </div>
+        </div>
+
+        {customerNoteToPicker ? (
+          <div className="mt-3 rounded-2xl border border-slate-100 bg-white px-4 py-3 text-right text-sm font-medium leading-6 text-slate-700" dir="rtl">
+            <span className="font-extrabold text-slate-800">הערת לקוח למלקט: </span>
+            {customerNoteToPicker}
+          </div>
+        ) : null}
+
+        <div className="mt-4">{renderReadonlyActions()}</div>
+      </div>
+    );
+  }
+
   return (
-    <div className="card overflow-hidden">
+    <div className="card overflow-hidden font-sans">
       <div className="p-5">
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2">
@@ -75,12 +181,22 @@ export function OrderCard({
 
           <StatusBadge status={order.status} fulfillmentMethod={order.fulfillment_method} />
 
+          {compactEligible ? (
+            <button
+              type="button"
+              className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-bold text-slate-600 transition hover:bg-slate-50"
+              onClick={() => setDetailsExpanded(false)}
+            >
+              הסתר פרטים
+            </button>
+          ) : null}
+
           <div className="ms-auto flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-600">
             {showName ? (
               <span className="pill bg-slate-100 text-slate-700">{name}</span>
             ) : null}
             {phone ? (
-              <span className="pill bg-slate-100 text-slate-700">{phone}</span>
+              <span className="pill bg-slate-100 text-slate-700">{displayPhone}</span>
             ) : null}
             {order.created_at ? (
               <span className="pill bg-slate-100 text-slate-700">
@@ -136,13 +252,18 @@ export function OrderCard({
 
         {customerNoteToPicker ? (
           <div
-            className="mt-4 rounded-2xl border border-amber-100 bg-amber-50 p-4 text-right"
+            className="mt-4 rounded-2xl border border-slate-200 bg-white p-4 text-right shadow-sm font-sans"
             dir="rtl"
           >
-            <div className="text-xs font-extrabold text-amber-900">
-              הודעה מהלקוח למלקט
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-xs font-extrabold tracking-tight text-slate-800">
+                הערה שנשלחה מהלקוח
+              </div>
+              <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-500">
+                למלקט
+              </span>
             </div>
-            <div className="mt-2 whitespace-pre-wrap text-sm font-semibold text-amber-950">
+            <div className="mt-2 whitespace-pre-wrap text-sm font-medium leading-6 text-slate-700">
               {customerNoteToPicker}
             </div>
           </div>
@@ -215,69 +336,7 @@ export function OrderCard({
                 </div>
               ) : null}
 
-              <div className="flex flex-col gap-2 sm:flex-row sm:justify-start" dir="ltr">
-                <button
-                  className="btn-outline"
-                  dir="rtl"
-                  onClick={handleDownloadPdf}
-                  disabled={pdfBusy}
-                >
-                  {pdfBusy ? (
-                    <RefreshCw className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Download className="h-4 w-4" />
-                  )}
-                  הורד PDF
-                </button>
-
-                {isReady && isDelivery ? (
-                  <button
-                    className="btn-success"
-                    dir="rtl"
-                    onClick={onMarkShipped}
-                    disabled={busy}
-                  >
-                    {busy ? (
-                      <RefreshCw className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Truck className="h-4 w-4" />
-                    )}
-                    סמן כנשלחה
-                  </button>
-                ) : null}
-
-                {isReady && !isDelivery ? (
-                  <button
-                    className="btn-success"
-                    dir="rtl"
-                    onClick={onMarkCompleted}
-                    disabled={busy}
-                  >
-                    {busy ? (
-                      <RefreshCw className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <CheckCheck className="h-4 w-4" />
-                    )}
-                    סמן כנאספה
-                  </button>
-                ) : null}
-
-                {isDelivering ? (
-                  <button
-                    className="btn-success"
-                    dir="rtl"
-                    onClick={onMarkCompleted}
-                    disabled={busy}
-                  >
-                    {busy ? (
-                      <RefreshCw className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <CheckCheck className="h-4 w-4" />
-                    )}
-                    סמן כנמסרה
-                  </button>
-                ) : null}
-              </div>
+              {renderReadonlyActions()}
             </div>
           ) : isConfirmed ? (
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">

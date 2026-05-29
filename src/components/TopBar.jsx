@@ -14,17 +14,19 @@ import {
 import { cn } from "../lib/utils";
 import { getShopId } from "../lib/api";
 
-function TabBtn({ active, onClick, icon, label, count }) {
+function TabBtn({ active, onClick, icon, label, count, tone = "default" }) {
   const hasCount = count !== undefined && count !== null;
 
   return (
     <button
       onClick={onClick}
       className={cn(
-        "inline-flex items-center gap-2 rounded-xl px-2 py-1.5 text-sm font-semibold transition border",
+        "inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold whitespace-nowrap transition",
         active
-          ? "bg-slate-900 text-white border-slate-900"
-          : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50",
+          ? "border-slate-900 bg-slate-900 text-white shadow-sm"
+          : tone === "management"
+            ? "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
+            : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
       )}
     >
       {createElement(icon, { className: "h-4 w-4" })}
@@ -56,8 +58,22 @@ export function TopBar({
   const shopId = getShopId();
   const branchName = String(shopInfo?.name || "").trim();
 
+  const lifecycleTabs = [
+    { key: "pending", icon: ClipboardList, label: "הזמנות ממתינות", count: counts?.pending ?? 0 },
+    { key: "readyPickup", icon: Package, label: "מוכנות לאיסוף", count: counts?.readyPickup ?? 0 },
+    { key: "readyDelivery", icon: Truck, label: "מוכנות למשלוח", count: counts?.readyDelivery ?? 0 },
+    { key: "delivering", icon: Truck, label: "משלוחים בדרך", count: counts?.delivering ?? 0 },
+    { key: "completed", icon: CheckCheck, label: "הזמנות שהסתיימו", count: counts?.completed ?? 0 },
+  ];
+
+  const managementTabs = [
+    { key: "stock", icon: Boxes, label: "מלאי" },
+    { key: "promotions", icon: BadgePercent, label: "מבצעים" },
+    { key: "settings", icon: Settings, label: "פרטי עסק" },
+  ];
+
   return (
-    <div className="card p-5">
+    <div className="card p-5 font-sans">
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
           <div className="flex items-center gap-3">
@@ -69,20 +85,18 @@ export function TopBar({
               <div className="text-lg font-extrabold leading-tight">
                 Pick &amp; Pack{" "}
                 <span className="text-slate-400 font-semibold">•</span>{" "}
-                <a
-                  href="https://gogobuy.ai"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-slate-700 hover:text-slate-900 underline underline-offset-4 decoration-slate-200"
-                >
-                  gogobuy.ai
-                </a>
+                <span className="text-slate-700 font-extrabold">gogobuy.ai</span>
               </div>
 
               <div className="text-sm text-slate-600">
                 <span className="font-semibold">
                   {branchName || `חנות #${user?.shop_id ?? shopId}`}
                 </span>
+                {user?.role ? (
+                  <span className="me-2 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-500">
+                    {user.role === "admin" ? "מנהל" : "משתמש"}
+                  </span>
+                ) : null}
               </div>
             </div>
           </div>
@@ -105,56 +119,30 @@ export function TopBar({
           </div>
         </div>
 
-        <div
-          className="flex flex-wrap items-center justify-end gap-2"
-          dir="ltr"
-        >
-          <TabBtn
-            active={activeTab === "settings"}
-            onClick={() => onTabChange("settings")}
-            icon={Settings}
-            label="פרטי עסק"
-          />
-          <TabBtn
-            active={activeTab === "completed"}
-            onClick={() => onTabChange("completed")}
-            icon={CheckCheck}
-            label="הזמנות שהסתיימו"
-            count={counts?.completed ?? 0}
-          />
-          <TabBtn
-            active={activeTab === "delivering"}
-            onClick={() => onTabChange("delivering")}
-            icon={Truck}
-            label="משלוחים בדרך"
-            count={counts?.delivering ?? 0}
-          />
-          <TabBtn
-            active={activeTab === "ready"}
-            onClick={() => onTabChange("ready")}
-            icon={Package}
-            label="מוכנות לשליחה/איסוף"
-            count={counts?.ready ?? 0}
-          />
-          <TabBtn
-            active={activeTab === "pending"}
-            onClick={() => onTabChange("pending")}
-            icon={ClipboardList}
-            label="הזמנות ממתינות"
-            count={counts?.pending ?? 0}
-          />
-          <TabBtn
-            active={activeTab === "promotions"}
-            onClick={() => onTabChange("promotions")}
-            icon={BadgePercent}
-            label="מבצעים"
-          />
-          <TabBtn
-            active={activeTab === "stock"}
-            onClick={() => onTabChange("stock")}
-            icon={Boxes}
-            label="ניהול מלאי"
-          />
+        <div className="border-t border-slate-100 pt-4">
+          <div className="dashboard-tabs flex flex-wrap items-center justify-start gap-2" dir="rtl">
+            {lifecycleTabs.map((tab) => (
+              <TabBtn
+                key={tab.key}
+                active={activeTab === tab.key}
+                onClick={() => onTabChange(tab.key)}
+                icon={tab.icon}
+                label={tab.label}
+                count={tab.count}
+              />
+            ))}
+
+            {managementTabs.map((tab) => (
+              <TabBtn
+                key={tab.key}
+                active={activeTab === tab.key}
+                onClick={() => onTabChange(tab.key)}
+                icon={tab.icon}
+                label={tab.label}
+                tone="management"
+              />
+            ))}
+          </div>
         </div>
       </div>
     </div>

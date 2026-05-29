@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronUp, Save } from "lucide-react";
+import { ChevronDown, ChevronUp, RefreshCw } from "lucide-react";
 import { cn } from "../lib/utils";
 
 function fmtUnits(n) {
@@ -66,15 +66,18 @@ export function OrderItemRow({
     fmtAmount(displayedSuppliedAmount),
   );
   const [pickerNote, setPickerNote] = useState(itemNote || "");
+  const [saveState, setSaveState] = useState("idle");
 
   useEffect(() => {
     setSuppliedAmount(fmtAmount(displayedSuppliedAmount));
     setPickerNote(itemNote || "");
+    setSaveState("idle");
   }, [displayedSuppliedAmount, itemNote]);
 
   const changedSupplied = hasDifferentSuppliedAmount(item);
   const showPickerNote = Boolean(String(itemNote || "").trim());
   const hasReportDetails = changedSupplied || showPickerNote;
+  const amountStep = item.sold_by_weight ? "0.1" : "1";
 
   const originalDetailState = useMemo(
     () => ({
@@ -83,6 +86,16 @@ export function OrderItemRow({
     }),
     [displayedSuppliedAmount, itemNote],
   );
+
+  function detailsChanged() {
+    const nextAmount = asComparableText(suppliedAmount);
+    const nextNote = String(pickerNote || "").trim();
+
+    return (
+      nextAmount !== originalDetailState.suppliedAmount ||
+      nextNote !== originalDetailState.pickerNote
+    );
+  }
 
   async function saveDetailsIfNeeded() {
     if (!editableDetails || !onSaveDetails || detailsBusy) return;
@@ -94,14 +107,26 @@ export function OrderItemRow({
       nextAmount === originalDetailState.suppliedAmount &&
       nextNote === originalDetailState.pickerNote
     ) {
+      setSaveState("idle");
       return;
     }
 
-    await onSaveDetails({
-      suppliedAmount: nextAmount === "" ? null : nextAmount,
-      pickerNote: nextNote,
-    });
+    try {
+      setSaveState("saving");
+      await onSaveDetails({
+        suppliedAmount: nextAmount === "" ? null : nextAmount,
+        pickerNote: nextNote,
+      });
+      setSaveState("saved");
+    } catch {
+      setSaveState("error");
+    }
   }
+
+  async function handleSaveDetails() {
+    await saveDetailsIfNeeded();
+  }
+
 
   return (
     <div
@@ -181,49 +206,66 @@ export function OrderItemRow({
 
           {editableDetails && detailsOpen ? (
             <div className="mt-3 rounded-2xl border border-slate-200 bg-white/80 p-3 shadow-sm">
-              <div className="grid gap-3 sm:grid-cols-[145px_1fr_auto] sm:items-end">
+              <div className="grid gap-3 sm:grid-cols-[155px_1fr_120px] sm:items-end">
                 <label className="grid gap-1 text-xs font-bold text-slate-600">
                   כמות שסופקה
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-2 py-1 shadow-sm focus-within:border-slate-900">
                     <input
                       type="number"
                       min="0"
-                      step="0.001"
-                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 outline-none focus:border-slate-900"
+                      step={amountStep}
+                      inputMode="decimal"
+                      className="w-full border-0 bg-transparent px-1 py-1 text-sm font-semibold text-slate-900 outline-none"
                       value={suppliedAmount}
-                      onChange={(e) => setSuppliedAmount(e.target.value)}
-                      onBlur={saveDetailsIfNeeded}
+                      onChange={(e) => { setSuppliedAmount(e.target.value); setSaveState("idle"); }}
                       disabled={detailsBusy}
                       dir="ltr"
                     />
-                    {unit ? <span className="text-xs text-slate-500">{unit}</span> : null}
+                    {unit ? <span className="shrink-0 text-xs font-semibold text-slate-500">{unit}</span> : null}
                   </div>
                 </label>
 
                 <label className="grid gap-1 text-xs font-bold text-slate-600">
                   הערה לדו״ח
                   <input
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-900 outline-none focus:border-slate-900"
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm outline-none focus:border-slate-900"
                     value={pickerNote}
-                    onChange={(e) => setPickerNote(e.target.value)}
-                    onBlur={saveDetailsIfNeeded}
+                    onChange={(e) => { setPickerNote(e.target.value); setSaveState("idle"); }}
                     placeholder="לדוגמה: סופק טעם אחר / לא היה גודל מדויק"
                     disabled={detailsBusy}
                   />
                 </label>
 
-                <button
-                  type="button"
-                  className="btn-outline h-9 px-3 text-xs"
-                  onClick={saveDetailsIfNeeded}
-                  disabled={detailsBusy}
-                >
-                  <Save className="h-3.5 w-3.5" />
-                  שמור
-                </button>
+                <div className="grid gap-1 text-right text-[11px] font-bold text-slate-500 sm:text-center">
+                  <button
+                    type="button"
+                    className="btn-outline h-9 px-3 py-1 text-xs"
+                    disabled={detailsBusy || saveState === "saving" || !detailsChanged()}
+                    onClick={handleSaveDetails}
+                  >
+                    {detailsBusy || saveState === "saving" ? (
+                      <RefreshCw className="h-3 w-3 animate-spin" />
+                    ) : null}
+                    שמור
+                  </button>
+
+                  {detailsChanged() ? (
+                    <span className="inline-flex justify-center rounded-full bg-amber-50 px-2 py-1 text-amber-700">
+                      לא נשמר
+                    </span>
+                  ) : saveState === "saved" ? (
+                    <span className="inline-flex justify-center rounded-full bg-emerald-50 px-2 py-1 text-emerald-700">
+                      נשמר
+                    </span>
+                  ) : saveState === "error" ? (
+                    <span className="inline-flex justify-center rounded-full bg-rose-50 px-2 py-1 text-rose-700">
+                      שגיאת שמירה
+                    </span>
+                  ) : null}
+                </div>
               </div>
               <div className="mt-2 text-[11px] font-semibold text-slate-500">
-                הפרטים האלה נשמרים לדו״ח PDF ולא נשלחים ללקוח.
+                הפרטים נשמרים לדו״ח PDF ולא נשלחים ללקוח. אחרי שינוי לחץ שמור.
               </div>
             </div>
           ) : null}
@@ -246,7 +288,7 @@ export function OrderItemRow({
             </div>
           ) : null}
 
-          {detailsBusy ? (
+          {detailsBusy && saveState !== "saving" ? (
             <div className="mt-1 text-[11px] font-semibold text-slate-500">
               שומר פרטי דו״ח…
             </div>

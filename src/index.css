@@ -2,9 +2,25 @@
 
 :root{
   color-scheme: light;
-  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  font-family: Arial, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+html, body, #root {
+  font-family: Arial, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+body {
+  margin: 0;
+  background: #f8fafc;
+}
+button, input, textarea, select {
+  font-family: inherit;
 }
 ::selection{ background: rgba(59,130,246,0.20); }
+
+
+.dashboard-tabs {
+  direction: rtl;
+  justify-content: flex-start;
+}
 
 @layer components {
   .card { @apply bg-white rounded-2xl shadow-md border border-slate-100; }

@@ -1,5 +1,5 @@
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
-const SHOP_ID = Number(import.meta.env.VITE_SHOP_ID || "1");
+const FALLBACK_SHOP_ID = Number(import.meta.env.VITE_SHOP_ID || "1");
 const AUTH_TOKEN_KEY = "gogobuy_dashboard_token_v1";
 
 export function getAuthToken() {
@@ -8,6 +8,31 @@ export function getAuthToken() {
   } catch {
     return "";
   }
+}
+
+function decodeDashboardTokenPayload() {
+  const token = getAuthToken();
+  const encoded = String(token || "").split(".")[0];
+  if (!encoded) return null;
+
+  try {
+    const base64 = encoded.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), "=");
+    const json = decodeURIComponent(
+      atob(padded)
+        .split("")
+        .map((c) => `%${c.charCodeAt(0).toString(16).padStart(2, "0")}`)
+        .join(""),
+    );
+    return JSON.parse(json);
+  } catch {
+    return null;
+  }
+}
+
+export function getShopId() {
+  const fromToken = Number(decodeDashboardTokenPayload()?.shop_id);
+  return Number.isFinite(fromToken) && fromToken > 0 ? fromToken : FALLBACK_SHOP_ID;
 }
 
 export function setAuthToken(token) {
@@ -131,7 +156,7 @@ function normalizeOrder(raw) {
     raw.items ?? raw.order_items ?? raw.orderItems ?? raw.lines ?? [];
   return {
     id: Number(raw.id ?? raw.order_id ?? raw.orderId),
-    shop_id: Number(raw.shop_id ?? raw.shopId ?? SHOP_ID),
+    shop_id: Number(raw.shop_id ?? raw.shopId ?? getShopId()),
     status: raw.status ?? "confirmed",
     created_at: raw.created_at ?? raw.createdAt,
     picker_note: raw.picker_note ?? raw.pickerNote ?? null,
@@ -169,7 +194,7 @@ export async function getPickerOrders(statuses) {
       : "confirmed,preparing";
 
   const res = await fetchJSON(
-    `/api/dashboard/picker/orders?shop_id=${SHOP_ID}&status=${encodeURIComponent(statusParam)}`,
+    `/api/dashboard/picker/orders?status=${encodeURIComponent(statusParam)}`,
   );
 
   const rawOrders = res.orders ?? res.data ?? res;
@@ -180,7 +205,7 @@ export async function setOrderStatus(orderId, status, pickerNote) {
   const body = { status };
   if (pickerNote !== undefined) body.picker_note = pickerNote;
 
-  return await fetchJSON(`/api/dashboard/picker/orders/${orderId}/status?shop_id=${SHOP_ID}`, {
+  return await fetchJSON(`/api/dashboard/picker/orders/${orderId}/status`, {
     method: "PATCH",
     body: JSON.stringify(body),
   });
@@ -188,7 +213,7 @@ export async function setOrderStatus(orderId, status, pickerNote) {
 
 export async function setOrderItemPickerDetails(orderId, itemId, payload) {
   return await fetchJSON(
-    `/api/dashboard/picker/orders/${orderId}/items/${itemId}?shop_id=${SHOP_ID}`,
+    `/api/dashboard/picker/orders/${orderId}/items/${itemId}`,
     {
       method: "PATCH",
       body: JSON.stringify(payload || {}),
@@ -196,14 +221,10 @@ export async function setOrderItemPickerDetails(orderId, itemId, payload) {
   );
 }
 
-export function getShopId() {
-  return SHOP_ID;
-}
-
 function normalizeStockProduct(raw) {
   return {
     id: Number(raw.id),
-    shop_id: Number(raw.shop_id ?? raw.shopId ?? SHOP_ID),
+    shop_id: Number(raw.shop_id ?? raw.shopId ?? getShopId()),
     name: String(raw.name ?? ""),
     display_name_en: String(raw.display_name_en ?? raw.displayNameEn ?? ""),
     price:
@@ -224,9 +245,7 @@ function normalizeStockProduct(raw) {
 }
 
 export async function getStockCategories() {
-  const res = await fetchJSON(
-    `/api/dashboard/stock/categories?shop_id=${SHOP_ID}`,
-  );
+  const res = await fetchJSON(`/api/dashboard/stock/categories`);
   return res;
 }
 
@@ -238,7 +257,6 @@ export async function getStockProductsPage({
   cursor = null,
 }) {
   const params = new URLSearchParams();
-  params.set("shop_id", String(SHOP_ID));
   params.set("limit", String(limit));
   if (cursor) params.set("cursor", String(cursor));
   if (q !== undefined && q !== null) params.set("q", String(q));
@@ -261,20 +279,20 @@ export async function getStockProductsPage({
 export async function createStockProduct(payload) {
   return await fetchJSON(`/api/dashboard/stock/products`, {
     method: "POST",
-    body: JSON.stringify({ ...payload, shop_id: SHOP_ID }),
+    body: JSON.stringify(payload),
   });
 }
 
 export async function updateStockProduct(id, payload) {
   return await fetchJSON(`/api/dashboard/stock/products/${id}`, {
     method: "PATCH",
-    body: JSON.stringify({ ...payload, shop_id: SHOP_ID }),
+    body: JSON.stringify(payload),
   });
 }
 
 export async function deleteStockProduct(id) {
   return await fetchJSON(
-    `/api/dashboard/stock/products/${id}?shop_id=${SHOP_ID}`,
+    `/api/dashboard/stock/products/${id}`,
     { method: "DELETE" },
   );
 }
@@ -282,7 +300,7 @@ export async function deleteStockProduct(id) {
 function normalizePromotion(raw) {
   return {
     id: Number(raw.id),
-    shop_id: Number(raw.shop_id ?? raw.shopId ?? SHOP_ID),
+    shop_id: Number(raw.shop_id ?? raw.shopId ?? getShopId()),
     product_id: Number(raw.product_id ?? raw.productId),
     product_name: raw.product_name ?? raw.productName ?? null,
     product_display_name_en:
@@ -319,7 +337,6 @@ export async function getPromotions({
   sort_dir = "desc",
 } = {}) {
   const params = new URLSearchParams();
-  params.set("shop_id", String(SHOP_ID));
   params.set("status", String(status || "all"));
   params.set("limit", "500");
   if (q) params.set("q", String(q));
@@ -344,19 +361,19 @@ export async function getPromotions({
 export async function createPromotion(payload) {
   return await fetchJSON(`/api/dashboard/promotions`, {
     method: "POST",
-    body: JSON.stringify({ ...payload, shop_id: SHOP_ID }),
+    body: JSON.stringify(payload),
   });
 }
 
 export async function updatePromotion(id, payload) {
   return await fetchJSON(`/api/dashboard/promotions/${id}`, {
     method: "PATCH",
-    body: JSON.stringify({ ...payload, shop_id: SHOP_ID }),
+    body: JSON.stringify(payload),
   });
 }
 
 export async function deletePromotion(id) {
-  return await fetchJSON(`/api/dashboard/promotions/${id}?shop_id=${SHOP_ID}`, {
+  return await fetchJSON(`/api/dashboard/promotions/${id}`, {
     method: "DELETE",
   });
 }
@@ -366,8 +383,10 @@ function normalizeBusinessSettings(raw) {
   const info = raw.info ?? raw.shop ?? {};
   return {
     info: {
-      shop_id: Number(info.shop_id ?? info.id ?? SHOP_ID),
+      shop_id: Number(info.shop_id ?? info.id ?? getShopId()),
       name: info.name ?? "",
+      chain_name: info.chain_name ?? info.chainName ?? "",
+      branch_name: info.branch_name ?? info.branchName ?? "",
       address: info.address ?? "",
       google_maps_url: info.google_maps_url ?? info.googleMapsUrl ?? "",
       phone: info.phone ?? "",
@@ -383,26 +402,33 @@ function normalizeBusinessSettings(raw) {
       cart_empty_reminder_minutes:
         toNumberOrNull(
           info.cart_empty_reminder_minutes ?? info.cartEmptyReminderMinutes,
-        ) ?? 0,
+        ) ?? 5,
       stock_release_after_inactive_minutes:
         toNumberOrNull(
           info.stock_release_after_inactive_minutes ??
             info.stockReleaseAfterInactiveMinutes,
-        ) ?? 0,
+        ) ?? 30,
+      max_order_quantity_per_product:
+        toNumberOrNull(
+          info.max_order_quantity_per_product ??
+            info.maxOrderQuantityPerProduct,
+        ) ?? 10,
     },
     regular_hours: Array.isArray(raw.regular_hours) ? raw.regular_hours : [],
     special_hours: Array.isArray(raw.special_hours) ? raw.special_hours : [],
+    delivery_zones: Array.isArray(raw.delivery_zones) ? raw.delivery_zones : [],
+    delivery_zone_options: Array.isArray(raw.delivery_zone_options) ? raw.delivery_zone_options : [],
   };
 }
 
 export async function getBusinessSettings() {
-  const res = await fetchJSON(`/api/dashboard/settings/business?shop_id=${SHOP_ID}`);
+  const res = await fetchJSON(`/api/dashboard/settings/business`);
   return normalizeBusinessSettings(res);
 }
 
 export async function updateBusinessSettings(payload) {
   return await fetchJSON(`/api/dashboard/settings/business`, {
     method: "PATCH",
-    body: JSON.stringify({ ...payload, shop_id: SHOP_ID }),
+    body: JSON.stringify(payload),
   });
 }

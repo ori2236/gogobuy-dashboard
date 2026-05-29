@@ -20,12 +20,14 @@ import {
   deletePromotion,
   getBusinessSettings,
   updateBusinessSettings,
+  getShopId,
 } from "./api";
 
 export function useOrders(statuses) {
   const key = Array.isArray(statuses) ? statuses.join(",") : "";
+  const shopId = getShopId();
   return useQuery({
-    queryKey: ["pickerOrders", key],
+    queryKey: ["pickerOrders", shopId, key],
     queryFn: () => getPickerOrders(statuses),
     refetchInterval: false,
     refetchOnWindowFocus: false,
@@ -73,7 +75,7 @@ export function canMarkReady(order) {
 
 export function useStockCategories() {
   return useQuery({
-    queryKey: ["stockCategories"],
+    queryKey: ["stockCategories", getShopId()],
     queryFn: () => getStockCategories(),
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
@@ -91,6 +93,7 @@ export function useStockProductsInfinite({
 }) {
   const key = [
     "stockProducts",
+    getShopId(),
     {
       q: q ?? "",
       category: category ?? "",
@@ -158,6 +161,7 @@ export function usePromotions({
   return useQuery({
     queryKey: [
       "promotions",
+      getShopId(),
       {
         status: status ?? "all",
         q: q ?? "",
@@ -207,7 +211,7 @@ export function useDeletePromotion() {
 
 export function useBusinessSettings() {
   return useQuery({
-    queryKey: ["businessSettings"],
+    queryKey: ["businessSettings", getShopId()],
     queryFn: () => getBusinessSettings(),
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,

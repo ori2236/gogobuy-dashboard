@@ -14,11 +14,11 @@ export function StatusBadge({ status, fulfillmentMethod }) {
               cls: "bg-emerald-100 text-emerald-800",
             }
           : status === "delivering"
-            ? { label: "נשלחה", cls: "bg-indigo-100 text-indigo-800" }
+            ? { label: "נשלחה", cls: "bg-blue-600 text-white ring-1 ring-blue-700" }
             : status === "completed"
               ? {
                   label: isDelivery ? "נמסרה" : "נאספה",
-                  cls: "bg-violet-100 text-violet-800",
+                  cls: "bg-slate-200 text-slate-800",
                 }
               : { label: status, cls: "bg-slate-100 text-slate-700" };
 
