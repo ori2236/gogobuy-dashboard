@@ -186,7 +186,7 @@ function Section({ icon, title, subtitle, footer, children }) {
 
 function Panel({ title, subtitle, children, className = "" }) {
   return (
-    <div className={`rounded-2xl border border-slate-100 bg-slate-50/70 p-4 ${className}`}>
+    <div className={`h-fit rounded-2xl border border-slate-100 bg-slate-50/70 p-4 ${className}`}>
       <div className="mb-4 text-right">
         <div className="text-sm font-extrabold text-slate-900">{title}</div>
         {subtitle ? <div className="mt-1 text-xs font-medium text-slate-500">{subtitle}</div> : null}
@@ -387,121 +387,138 @@ export function BusinessSettingsPage({ user, onNotify, onRegisterRefetch, onFetc
         subtitle="המידע שהבוט והדשבורד משתמשים בו לכתובת, טלפון, כשרות, משלוחים ושעות פתיחה."
         footer={footer}
       >
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(280px,0.8fr)]">
-          <Panel title="פרטי הסניף">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="שם הרשת">
-                <TextInput disabled={disabled} value={info.chain_name || ""} onChange={(e) => changeInfo("chain_name", e.target.value)} placeholder="לדוגמה: סופר גלסנר" />
-              </Field>
-              <Field label="שם הסניף">
-                <TextInput disabled={disabled} value={info.branch_name || ""} onChange={(e) => changeInfo("branch_name", e.target.value)} placeholder="לדוגמה: לשם" />
-              </Field>
-              <Field label="שם מלא בדשבורד">
-                <TextInput disabled={disabled} value={info.name || ""} onChange={(e) => changeInfo("name", e.target.value)} />
-              </Field>
-              <Field label="כתובת">
-                <TextInput disabled={disabled} value={info.address || ""} onChange={(e) => changeInfo("address", e.target.value)} />
-              </Field>
-              <Field label="קישור לגוגל מפות">
-                <TextInput disabled={disabled} value={info.google_maps_url || ""} onChange={(e) => changeInfo("google_maps_url", e.target.value)} placeholder="https://maps.google.com/..." dir="ltr" />
-              </Field>
-              <Field label="טלפון">
-                <TextInput disabled={disabled} value={info.phone || ""} onChange={(e) => changeInfo("phone", e.target.value)} dir="ltr" />
-              </Field>
-              <Field label="טלפון WhatsApp">
-                <TextInput disabled={disabled} value={info.whatsapp_phone || ""} onChange={(e) => changeInfo("whatsapp_phone", e.target.value)} dir="ltr" />
-              </Field>
-              <Field label="מייל">
-                <TextInput disabled={disabled} value={info.email || ""} onChange={(e) => changeInfo("email", e.target.value)} dir="ltr" />
-              </Field>
-              <Field label="סוג כשרות" className="sm:col-span-2">
-                <TextInput disabled={disabled} value={info.kashrut || ""} onChange={(e) => changeInfo("kashrut", e.target.value)} placeholder="לדוגמה: רבנות / בד״ץ / ללא תעודה" />
-              </Field>
-            </div>
-          </Panel>
+        <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.65fr)_minmax(300px,0.85fr)]">
+          <div className="grid gap-4">
+            <Panel title="פרטי הסניף" subtitle="שם, כתובת, יצירת קשר וכשרות">
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="rounded-2xl border border-white bg-white/80 p-3 shadow-sm">
+                  <div className="mb-3 text-right text-xs font-extrabold text-slate-500">שם ומיתוג</div>
+                  <div className="grid gap-3">
+                    <Field label="שם הרשת">
+                      <TextInput disabled={disabled} value={info.chain_name || ""} onChange={(e) => changeInfo("chain_name", e.target.value)} placeholder="לדוגמה: סופר גלסנר" />
+                    </Field>
+                    <Field label="שם הסניף">
+                      <TextInput disabled={disabled} value={info.branch_name || ""} onChange={(e) => changeInfo("branch_name", e.target.value)} placeholder="לדוגמה: לשם" />
+                    </Field>
+                    <Field label="שם מלא בדשבורד">
+                      <TextInput disabled={disabled} value={info.name || ""} onChange={(e) => changeInfo("name", e.target.value)} />
+                    </Field>
+                  </div>
+                </div>
 
-          <Panel title="הגדרות הזמנה ואוטומציה">
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-              <NumberField
-                label="מינימום הזמנה למשלוח"
-                unit="₪"
-                value={info.min_delivery_order_amount ?? 0}
-                disabled={disabled}
-                onChange={(value) => changeInfo("min_delivery_order_amount", value)}
-                help="נבדק לפי סכום המוצרים בלבד, ללא דמי משלוח. אם הערך 0, אין מינימום למשלוח."
-              />
-              <NumberField
-                label="מינימום הזמנה לאיסוף עצמי"
-                unit="₪"
-                value={info.min_pickup_order_amount ?? 0}
-                disabled={disabled}
-                onChange={(value) => changeInfo("min_pickup_order_amount", value)}
-                help="נבדק לפי סכום המוצרים בלבד. אם הערך 0, אין מינימום לאיסוף עצמי."
-              />
-              <NumberField
-                label="דמי משלוח"
-                unit="₪"
-                value={info.delivery_fee ?? 0}
-                disabled={disabled}
-                onChange={(value) => changeInfo("delivery_fee", value)}
-              />
-              <NumberField
-                label="תזכורת לעגלה לא מאושרת"
-                unit="דקות"
-                min={5}
-                max={Math.max(5, Number(info.stock_release_after_inactive_minutes || 30) - 1)}
-                value={info.cart_empty_reminder_minutes ?? 5}
-                disabled={disabled}
-                onChange={(value) => changeInfo("cart_empty_reminder_minutes", value)}
-                help="אחרי הזמן הזה מאז העדכון האחרון בעגלה, הלקוח יקבל הודעת WhatsApp שמזכירה לאשר לפני שהמוצרים חוזרים למלאי."
-                error={cartReminderError}
-              />
-              <NumberField
-                label="החזרת מוצרים למלאי"
-                unit="דקות"
-                min={30}
-                value={info.stock_release_after_inactive_minutes ?? 30}
-                disabled={disabled}
-                onChange={(value) => changeInfo("stock_release_after_inactive_minutes", value)}
-                help="אחרי הזמן הזה מאז העדכון האחרון בעגלה, הזמנה שלא אושרה תבוטל אוטומטית, המוצרים יחזרו למלאי ותישלח הודעה ללקוח."
-                error={stockReleaseError}
-              />
-              <NumberField
-                label="מקסימום הזמנה ממוצר אחד"
-                unit="יח׳/ק״ג"
-                min={10}
-                value={info.max_order_quantity_per_product ?? 10}
-                disabled={disabled}
-                onChange={(value) => changeInfo("max_order_quantity_per_product", value)}
-                help="אם לקוח יבקש יותר מהמותר, הכמות תקוצץ אוטומטית למקסימום. במוצרי משקל המגבלה היא בק״ג."
-                error={maxPerProductError}
-              />
-            </div>
-          </Panel>
-        </div>
+                <div className="rounded-2xl border border-white bg-white/80 p-3 shadow-sm">
+                  <div className="mb-3 text-right text-xs font-extrabold text-slate-500">יצירת קשר</div>
+                  <div className="grid gap-3">
+                    <Field label="טלפון">
+                      <TextInput disabled={disabled} value={info.phone || ""} onChange={(e) => changeInfo("phone", e.target.value)} dir="ltr" />
+                    </Field>
+                    <Field label="טלפון WhatsApp">
+                      <TextInput disabled={disabled} value={info.whatsapp_phone || ""} onChange={(e) => changeInfo("whatsapp_phone", e.target.value)} dir="ltr" />
+                    </Field>
+                    <Field label="מייל">
+                      <TextInput disabled={disabled} value={info.email || ""} onChange={(e) => changeInfo("email", e.target.value)} dir="ltr" />
+                    </Field>
+                  </div>
+                </div>
 
-        <div className="mt-4 grid gap-4 xl:grid-cols-[320px_1fr]">
-          <Panel title="אפשרויות שירות">
-            <div className="grid gap-2">
-              <ToggleCard
-                label="תומך במשלוחים"
-                checked={info.supports_delivery}
-                disabled={disabled}
-                onChange={(value) => changeInfo("supports_delivery", value)}
-              />
-              <ToggleCard
-                label="תומך באיסוף עצמי"
-                checked={info.supports_pickup}
-                disabled={disabled}
-                onChange={(value) => changeInfo("supports_pickup", value)}
-              />
-            </div>
-          </Panel>
-          <Panel title="תיאור קצר על הסניף">
-            <Field label="מה יוצג לבוט בתשובות כלליות">
+                <div className="rounded-2xl border border-white bg-white/80 p-3 shadow-sm md:col-span-2">
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <Field label="כתובת">
+                      <TextInput disabled={disabled} value={info.address || ""} onChange={(e) => changeInfo("address", e.target.value)} />
+                    </Field>
+                    <Field label="קישור לגוגל מפות">
+                      <TextInput disabled={disabled} value={info.google_maps_url || ""} onChange={(e) => changeInfo("google_maps_url", e.target.value)} placeholder="https://maps.google.com/..." dir="ltr" />
+                    </Field>
+                    <Field label="סוג כשרות" className="md:col-span-2">
+                      <TextInput disabled={disabled} value={info.kashrut || ""} onChange={(e) => changeInfo("kashrut", e.target.value)} placeholder="לדוגמה: רבנות / בד״ץ / ללא תעודה" />
+                    </Field>
+                  </div>
+                </div>
+              </div>
+            </Panel>
+
+            <Panel title="תיאור קצר על הסניף" subtitle="מה יוצג לבוט בתשובות כלליות">
               <TextArea disabled={disabled} rows={3} value={info.about || ""} onChange={(e) => changeInfo("about", e.target.value)} placeholder="כמה מילים על הסניף, השירותים, אזורי שירות וכו׳" />
-            </Field>
-          </Panel>
+            </Panel>
+          </div>
+
+          <div className="grid gap-4">
+            <Panel title="הגדרות הזמנה ואוטומציה">
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                <NumberField
+                  label="מינימום הזמנה למשלוח"
+                  unit="₪"
+                  value={info.min_delivery_order_amount ?? 0}
+                  disabled={disabled}
+                  onChange={(value) => changeInfo("min_delivery_order_amount", value)}
+                  help="נבדק לפי סכום המוצרים בלבד, ללא דמי משלוח. אם הערך 0, אין מינימום למשלוח."
+                />
+                <NumberField
+                  label="מינימום הזמנה לאיסוף עצמי"
+                  unit="₪"
+                  value={info.min_pickup_order_amount ?? 0}
+                  disabled={disabled}
+                  onChange={(value) => changeInfo("min_pickup_order_amount", value)}
+                  help="נבדק לפי סכום המוצרים בלבד. אם הערך 0, אין מינימום לאיסוף עצמי."
+                />
+                <NumberField
+                  label="דמי משלוח"
+                  unit="₪"
+                  value={info.delivery_fee ?? 0}
+                  disabled={disabled}
+                  onChange={(value) => changeInfo("delivery_fee", value)}
+                />
+                <NumberField
+                  label="תזכורת לעגלה לא מאושרת"
+                  unit="דקות"
+                  min={5}
+                  max={Math.max(5, Number(info.stock_release_after_inactive_minutes || 30) - 1)}
+                  value={info.cart_empty_reminder_minutes ?? 5}
+                  disabled={disabled}
+                  onChange={(value) => changeInfo("cart_empty_reminder_minutes", value)}
+                  help="אחרי הזמן הזה מאז העדכון האחרון בעגלה, הלקוח יקבל הודעת WhatsApp שמזכירה לאשר לפני שהמוצרים חוזרים למלאי."
+                  error={cartReminderError}
+                />
+                <NumberField
+                  label="החזרת מוצרים למלאי"
+                  unit="דקות"
+                  min={30}
+                  value={info.stock_release_after_inactive_minutes ?? 30}
+                  disabled={disabled}
+                  onChange={(value) => changeInfo("stock_release_after_inactive_minutes", value)}
+                  help="אחרי הזמן הזה מאז העדכון האחרון בעגלה, הזמנה שלא אושרה תבוטל אוטומטית, המוצרים יחזרו למלאי ותישלח הודעה ללקוח."
+                  error={stockReleaseError}
+                />
+                <NumberField
+                  label="מקסימום הזמנה ממוצר אחד"
+                  unit="יח׳/ק״ג"
+                  min={10}
+                  value={info.max_order_quantity_per_product ?? 10}
+                  disabled={disabled}
+                  onChange={(value) => changeInfo("max_order_quantity_per_product", value)}
+                  help="אם לקוח יבקש יותר מהמותר, הכמות תקוצץ אוטומטית למקסימום. במוצרי משקל המגבלה היא בק״ג."
+                  error={maxPerProductError}
+                />
+              </div>
+            </Panel>
+
+            <Panel title="אפשרויות שירות">
+              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
+                <ToggleCard
+                  label="תומך במשלוחים"
+                  checked={info.supports_delivery}
+                  disabled={disabled}
+                  onChange={(value) => changeInfo("supports_delivery", value)}
+                />
+                <ToggleCard
+                  label="תומך באיסוף עצמי"
+                  checked={info.supports_pickup}
+                  disabled={disabled}
+                  onChange={(value) => changeInfo("supports_pickup", value)}
+                />
+              </div>
+            </Panel>
+          </div>
         </div>
       </Section>
 

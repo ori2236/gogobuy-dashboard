@@ -20,6 +20,82 @@ function formatLocalPhone(phone) {
   return phone || "";
 }
 
+function formatMoney(value) {
+  if (value === null || value === undefined || value === "") return "";
+  const n = Number(value);
+  return Number.isFinite(n) ? `₪${n.toFixed(2)}` : "";
+}
+
+function OrderPill({ children, className = "" }) {
+  return (
+    <span className={cn("pill border border-slate-100 bg-slate-50 text-slate-700 shadow-sm", className)}>
+      {children}
+    </span>
+  );
+}
+
+function OrderMetaPills({ order, isDelivery }) {
+  const price = formatMoney(order.price);
+  const deliveryFee = Number(order.delivery_fee || 0);
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <OrderPill className={isDelivery ? "bg-blue-50 text-blue-700" : "bg-cyan-50 text-cyan-700"}>
+        {isDelivery ? "📦 משלוח" : "🛍️ איסוף עצמי"}
+      </OrderPill>
+      {price ? (
+        <OrderPill className="bg-emerald-50 text-emerald-700">
+          💰 לתשלום {price}
+        </OrderPill>
+      ) : null}
+      {isDelivery && deliveryFee > 0 ? (
+        <OrderPill className="bg-orange-50 text-orange-700">
+          🚚 דמי משלוח {formatMoney(deliveryFee)}
+        </OrderPill>
+      ) : null}
+    </div>
+  );
+}
+
+function DeliveryDetailsBox({ order, compact = false }) {
+  const hasAddress = Boolean(String(order.delivery_address || "").trim());
+  const hasNotes = Boolean(String(order.delivery_notes || "").trim());
+  if (!hasAddress && !hasNotes) return null;
+
+  return (
+    <div className="mt-3 grid gap-1 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-right text-sm text-slate-700" dir="rtl">
+      {hasAddress ? (
+        <div className={cn("font-semibold text-slate-900", compact && "line-clamp-1")}>
+          📍 {order.delivery_address}
+        </div>
+      ) : null}
+      {hasNotes ? (
+        <div className="whitespace-pre-wrap text-xs font-semibold text-slate-600">
+          📝 הערה לשליח: {order.delivery_notes}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function CustomerNoteCard({ note, className = "" }) {
+  if (!note) return null;
+
+  return (
+    <div className={cn("rounded-2xl border border-slate-200 bg-white p-4 text-right shadow-sm", className)} dir="rtl">
+      <div className="flex items-center justify-between gap-3">
+        <div className="text-xs font-bold text-slate-800">הערה שנשלחה מהלקוח</div>
+        <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-500">
+          למלקט
+        </span>
+      </div>
+      <div className="mt-2 whitespace-pre-wrap text-sm font-medium leading-6 text-slate-700">
+        {note}
+      </div>
+    </div>
+  );
+}
+
 export function OrderCard({
   order,
   busyOrderId,
@@ -126,13 +202,14 @@ export function OrderCard({
 
   if (compactCollapsed) {
     return (
-      <div className="card overflow-hidden p-4 font-sans">
+      <div className="order-card card overflow-hidden p-4 font-sans">
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2">
             <ShoppingBasket className="h-5 w-5 text-slate-700" />
             <div className="text-base font-bold">הזמנה #{order.id}</div>
           </div>
           <StatusBadge status={order.status} fulfillmentMethod={order.fulfillment_method} />
+          <OrderMetaPills order={order} isDelivery={isDelivery} />
 
           <div className="ms-auto flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-600">
             {showName ? <span className="pill bg-slate-100 text-slate-700">{name}</span> : null}
@@ -141,29 +218,9 @@ export function OrderCard({
           </div>
         </div>
 
-        <div className="mt-3 grid gap-2 rounded-2xl border border-slate-100 bg-slate-50 p-3 text-right text-sm text-slate-700 sm:grid-cols-3" dir="rtl">
-          <div>
-            <div className="text-xs font-extrabold text-slate-500">אופן קבלה</div>
-            <div className="mt-1 font-bold text-slate-900">{isDelivery ? "משלוח עד הבית" : "איסוף עצמי"}</div>
-          </div>
-          {isDelivery ? (
-            <div className="sm:col-span-1">
-              <div className="text-xs font-extrabold text-slate-500">כתובת</div>
-              <div className="mt-1 line-clamp-1 font-bold text-slate-900">{order.delivery_address || "-"}</div>
-            </div>
-          ) : null}
-          <div>
-            <div className="text-xs font-extrabold text-slate-500">סה״כ לתשלום</div>
-            <div className="mt-1 font-bold text-slate-900">{order.price != null ? `₪${Number(order.price || 0).toFixed(2)}` : "-"}</div>
-          </div>
-        </div>
+        {isDelivery ? <DeliveryDetailsBox order={order} compact /> : null}
 
-        {customerNoteToPicker ? (
-          <div className="mt-3 rounded-2xl border border-slate-100 bg-white px-4 py-3 text-right text-sm font-medium leading-6 text-slate-700" dir="rtl">
-            <span className="font-extrabold text-slate-800">הערת לקוח למלקט: </span>
-            {customerNoteToPicker}
-          </div>
-        ) : null}
+        <CustomerNoteCard note={customerNoteToPicker} className="mt-3" />
 
         <div className="mt-4">{renderReadonlyActions()}</div>
       </div>
@@ -171,7 +228,7 @@ export function OrderCard({
   }
 
   return (
-    <div className="card overflow-hidden font-sans">
+    <div className="order-card card overflow-hidden font-sans">
       <div className="p-5">
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2">
@@ -180,6 +237,7 @@ export function OrderCard({
           </div>
 
           <StatusBadge status={order.status} fulfillmentMethod={order.fulfillment_method} />
+          <OrderMetaPills order={order} isDelivery={isDelivery} />
 
           {compactEligible ? (
             <button
@@ -206,30 +264,7 @@ export function OrderCard({
           </div>
         </div>
 
-        <div className="mt-4 grid gap-2 rounded-2xl border border-slate-100 bg-slate-50 p-3 text-right text-sm text-slate-700" dir="rtl">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="text-xs font-extrabold text-slate-500">אופן קבלה</span>
-            <span className="pill bg-white text-slate-800">
-              {isDelivery ? "📦 משלוח עד הבית" : "🛍️ איסוף עצמי"}
-            </span>
-          </div>
-          {isDelivery ? (
-            <>
-              {order.delivery_address ? (
-                <div className="whitespace-pre-wrap font-semibold">📍 {order.delivery_address}</div>
-              ) : null}
-              {order.delivery_notes ? (
-                <div className="whitespace-pre-wrap text-xs font-semibold text-slate-600">📝 הערה לשליח: {order.delivery_notes}</div>
-              ) : null}
-              {Number(order.delivery_fee || 0) > 0 ? (
-                <div className="text-xs font-bold text-slate-600">דמי משלוח: ₪{Number(order.delivery_fee || 0).toFixed(2)}</div>
-              ) : null}
-            </>
-          ) : null}
-          {order.price !== null && order.price !== undefined ? (
-            <div className="text-xs font-extrabold text-slate-700">סה״כ לתשלום: ₪{Number(order.price || 0).toFixed(2)}</div>
-          ) : null}
-        </div>
+        {isDelivery ? <DeliveryDetailsBox order={order} /> : null}
 
         {showProgress ? (
           <div className="mt-4">
@@ -250,24 +285,7 @@ export function OrderCard({
           </div>
         ) : null}
 
-        {customerNoteToPicker ? (
-          <div
-            className="mt-4 rounded-2xl border border-slate-200 bg-white p-4 text-right shadow-sm font-sans"
-            dir="rtl"
-          >
-            <div className="flex items-center justify-between gap-3">
-              <div className="text-xs font-extrabold tracking-tight text-slate-800">
-                הערה שנשלחה מהלקוח
-              </div>
-              <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-500">
-                למלקט
-              </span>
-            </div>
-            <div className="mt-2 whitespace-pre-wrap text-sm font-medium leading-6 text-slate-700">
-              {customerNoteToPicker}
-            </div>
-          </div>
-        ) : null}
+        <CustomerNoteCard note={customerNoteToPicker} className="mt-4" />
 
         {isPreparing ? (
           <div className="mt-4 text-right text-[11px] font-semibold text-slate-500">

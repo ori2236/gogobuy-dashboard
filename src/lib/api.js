@@ -183,6 +183,8 @@ function normalizeOrder(raw) {
       raw.delivery_notes ?? raw.deliveryNotes ?? null,
     price:
       raw.price === null || raw.price === undefined ? null : Number(raw.price),
+    payment_method:
+      raw.payment_method ?? raw.paymentMethod ?? raw.payment ?? null,
     items: Array.isArray(itemsRaw) ? itemsRaw.map(normalizeItem) : [],
   };
 }

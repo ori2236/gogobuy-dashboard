@@ -6,7 +6,7 @@ const PAGE_WIDTH = 900;
 const PAGE_HEIGHT = Math.round((PAGE_WIDTH * A4_HEIGHT_PT) / A4_WIDTH_PT);
 const SCALE = 2;
 const MARGIN = 46;
-const MIN_FORM_ROWS = 14;
+const MIN_FORM_ROWS = 10;
 const ROWS_PER_PAGE = 14;
 
 function formatQty(value) {

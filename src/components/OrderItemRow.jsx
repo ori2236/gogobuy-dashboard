@@ -131,7 +131,7 @@ export function OrderItemRow({
   return (
     <div
       className={cn(
-        "rounded-2xl border border-slate-100 bg-slate-50/60 px-3 py-3 transition select-none",
+        "rounded-2xl border border-slate-100 bg-slate-50/60 px-3 py-3 font-sans transition select-none",
         disabled ? "opacity-70" : "hover:bg-slate-50",
       )}
       dir="rtl"
@@ -239,7 +239,7 @@ export function OrderItemRow({
                 <div className="grid gap-1 text-right text-[11px] font-bold text-slate-500 sm:text-center">
                   <button
                     type="button"
-                    className="btn-outline h-9 px-3 py-1 text-xs"
+                    className="btn-success h-9 px-3 py-1 text-xs shadow-sm"
                     disabled={detailsBusy || saveState === "saving" || !detailsChanged()}
                     onClick={handleSaveDetails}
                   >
