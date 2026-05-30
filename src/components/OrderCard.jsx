@@ -239,16 +239,6 @@ export function OrderCard({
           <StatusBadge status={order.status} fulfillmentMethod={order.fulfillment_method} />
           <OrderMetaPills order={order} isDelivery={isDelivery} />
 
-          {compactEligible ? (
-            <button
-              type="button"
-              className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-bold text-slate-600 transition hover:bg-slate-50"
-              onClick={() => setDetailsExpanded(false)}
-            >
-              הסתר פרטים
-            </button>
-          ) : null}
-
           <div className="ms-auto flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-600">
             {showName ? (
               <span className="pill bg-slate-100 text-slate-700">{name}</span>

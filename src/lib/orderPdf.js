@@ -383,10 +383,7 @@ function drawOrderDetails(ctx, order, startY) {
     weight: 900,
     color: "#334155",
   });
-  const paymentDetails = [
-    `מחיר כולל לתשלום: ${formatMoney(order.price)}`,
-    `דמי משלוח ששולמו: ${formatMoney(order.delivery_fee)}`,
-  ].join("   |   ");
+  const paymentDetails = `מחיר כולל לתשלום: ${formatMoney(order.price)}`;
   drawRtl(ctx, paymentDetails, PAGE_WIDTH - MARGIN - 16, y + 35, tableW - 32, {
     size: 15,
     weight: 800,
@@ -496,7 +493,6 @@ function drawTable(ctx, rows, startIndex, y) {
     const requested = item ? qtyWithUnit(item.amount, unit) : "";
     const requestedUnits = item?.requested_units != null ? formatQty(item.requested_units) : "";
     const supplied = item?.supplied_amount != null ? qtyWithUnit(item.supplied_amount, unit) : "";
-    const changed = item ? hasDifferentSuppliedAmount(item) : false;
     const note = item ? (item.picker_note || "") : "";
 
     const values = {
@@ -523,11 +519,10 @@ function drawTable(ctx, rows, startIndex, y) {
           align: "center",
         });
       } else {
-        const color = col.key === "supplied" && changed ? "#be123c" : "#0f172a";
         drawRtl(ctx, values[col.key], x + col.w - 9, rowY + 10, col.w - 18, {
           size: col.key === "name" ? 15 : 14,
           weight: col.key === "name" ? 850 : 750,
-          color,
+          color: "#0f172a",
           maxLines: 2,
           lineHeight: 18,
         });
@@ -615,7 +610,7 @@ function buildCanvases(order, shopInfo, logoImage) {
 }
 
 function openPdfPreview(url, fileName) {
-  const previewUrl = `${url}#toolbar=0&navpanes=0&view=FitH`;
+  const previewUrl = `${url}#toolbar=0&navpanes=0&view=Fit&zoom=page-fit`;
 
   try {
     const win = window.open("", "_blank");
