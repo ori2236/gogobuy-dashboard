@@ -432,7 +432,7 @@ export function BusinessSettingsPage({ user, onNotify, onRegisterRefetch, onFetc
                 value={info.cart_empty_reminder_minutes ?? 5}
                 disabled={disabled}
                 onChange={(value) => changeInfo("cart_empty_reminder_minutes", value)}
-                help="ברירת מחדל: 5 דקות. חייב להיות נמוך מזמן החזרת מוצרים למלאי."
+                help="אחרי הזמן הזה מאז העדכון האחרון בעגלה, הלקוח יקבל הודעת WhatsApp שמזכירה לאשר לפני שהמוצרים חוזרים למלאי."
                 error={cartReminderError}
               />
               <NumberField
@@ -442,7 +442,7 @@ export function BusinessSettingsPage({ user, onNotify, onRegisterRefetch, onFetc
                 value={info.stock_release_after_inactive_minutes ?? 30}
                 disabled={disabled}
                 onChange={(value) => changeInfo("stock_release_after_inactive_minutes", value)}
-                help="ברירת מחדל: 30 דקות. אי אפשר לשמור ערך נמוך מזה."
+                help="אחרי הזמן הזה מאז העדכון האחרון בעגלה, הזמנה שלא אושרה תבוטל אוטומטית, המוצרים יחזרו למלאי ותישלח הודעה ללקוח."
                 error={stockReleaseError}
               />
               <NumberField
