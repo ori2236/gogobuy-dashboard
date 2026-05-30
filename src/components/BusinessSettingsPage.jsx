@@ -26,6 +26,8 @@ const EMPTY_INFO = {
   kashrut: "",
   about: "",
   min_order_amount: 0,
+  min_delivery_order_amount: 0,
+  min_pickup_order_amount: 0,
   delivery_fee: 0,
   cart_empty_reminder_minutes: 5,
   stock_release_after_inactive_minutes: 30,
@@ -216,8 +218,13 @@ export function BusinessSettingsPage({ user, onNotify, onRegisterRefetch, onFetc
   useEffect(() => {
     if (!settings.data) return;
     const dataInfo = { ...EMPTY_INFO, ...settings.data.info };
+    const legacyMin = Number(dataInfo.min_order_amount || 0);
     setInfo({
       ...dataInfo,
+      min_delivery_order_amount:
+        dataInfo.min_delivery_order_amount ?? legacyMin,
+      min_pickup_order_amount:
+        dataInfo.min_pickup_order_amount ?? legacyMin,
       cart_empty_reminder_minutes: Number(dataInfo.cart_empty_reminder_minutes || 0) < 5 ? 5 : dataInfo.cart_empty_reminder_minutes,
       stock_release_after_inactive_minutes: Number(dataInfo.stock_release_after_inactive_minutes || 0) < 30 ? 30 : dataInfo.stock_release_after_inactive_minutes,
     });
@@ -302,8 +309,13 @@ export function BusinessSettingsPage({ user, onNotify, onRegisterRefetch, onFetc
     try {
       const stockRelease = Math.max(30, Number(info.stock_release_after_inactive_minutes || 30));
       const cartReminder = Math.max(5, Number(info.cart_empty_reminder_minutes || 5));
+      const minDelivery = Math.max(0, Number(info.min_delivery_order_amount || 0));
+      const minPickup = Math.max(0, Number(info.min_pickup_order_amount || 0));
       const normalizedInfo = {
         ...info,
+        min_order_amount: Math.max(minDelivery, minPickup),
+        min_delivery_order_amount: minDelivery,
+        min_pickup_order_amount: minPickup,
         cart_empty_reminder_minutes: cartReminder,
         stock_release_after_inactive_minutes: stockRelease,
         max_order_quantity_per_product: Math.max(10, Number(info.max_order_quantity_per_product || 10)),
@@ -411,11 +423,20 @@ export function BusinessSettingsPage({ user, onNotify, onRegisterRefetch, onFetc
           <Panel title="הגדרות הזמנה ואוטומציה">
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
               <NumberField
-                label="סכום מינימלי להזמנה"
+                label="מינימום הזמנה למשלוח"
                 unit="₪"
-                value={info.min_order_amount ?? 0}
+                value={info.min_delivery_order_amount ?? 0}
                 disabled={disabled}
-                onChange={(value) => changeInfo("min_order_amount", value)}
+                onChange={(value) => changeInfo("min_delivery_order_amount", value)}
+                help="נבדק לפי סכום המוצרים בלבד, ללא דמי משלוח. אם הערך 0, אין מינימום למשלוח."
+              />
+              <NumberField
+                label="מינימום הזמנה לאיסוף עצמי"
+                unit="₪"
+                value={info.min_pickup_order_amount ?? 0}
+                disabled={disabled}
+                onChange={(value) => changeInfo("min_pickup_order_amount", value)}
+                help="נבדק לפי סכום המוצרים בלבד. אם הערך 0, אין מינימום לאיסוף עצמי."
               />
               <NumberField
                 label="דמי משלוח"
@@ -447,12 +468,12 @@ export function BusinessSettingsPage({ user, onNotify, onRegisterRefetch, onFetc
               />
               <NumberField
                 label="מקסימום הזמנה ממוצר אחד"
-                unit="יח׳"
+                unit="יח׳/ק״ג"
                 min={10}
                 value={info.max_order_quantity_per_product ?? 10}
                 disabled={disabled}
                 onChange={(value) => changeInfo("max_order_quantity_per_product", value)}
-                help="ברירת מחדל: 10. אי אפשר לשמור ערך נמוך מזה."
+                help="אם לקוח יבקש יותר מהמותר, הכמות תקוצץ אוטומטית למקסימום. במוצרי משקל המגבלה היא בק״ג."
                 error={maxPerProductError}
               />
             </div>

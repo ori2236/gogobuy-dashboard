@@ -120,7 +120,12 @@ function DashboardApp({ user, onLogout }) {
       pending: list.filter(
         (o) => o.status === "confirmed" || o.status === "preparing",
       ).length,
-      ready: list.filter((o) => o.status === "ready").length,
+      readyDelivery: list.filter(
+        (o) => o.status === "ready" && o.fulfillment_method === "delivery",
+      ).length,
+      readyPickup: list.filter(
+        (o) => o.status === "ready" && o.fulfillment_method !== "delivery",
+      ).length,
       delivering: list.filter((o) => o.status === "delivering").length,
       completed: list.filter((o) => o.status === "completed").length,
     };
@@ -138,8 +143,17 @@ function DashboardApp({ user, onLogout }) {
       return sortOrders(base, "pending");
     }
 
-    if (activeTab === "ready") {
-      base = normalized.filter((o) => o.status === "ready");
+    if (activeTab === "readyDelivery") {
+      base = normalized.filter(
+        (o) => o.status === "ready" && o.fulfillment_method === "delivery",
+      );
+      return sortOrders(base, "ready");
+    }
+
+    if (activeTab === "readyPickup") {
+      base = normalized.filter(
+        (o) => o.status === "ready" && o.fulfillment_method !== "delivery",
+      );
       return sortOrders(base, "ready");
     }
 
@@ -180,10 +194,10 @@ function DashboardApp({ user, onLogout }) {
     setConfirm({ open: true, order: { ...order, __note: note } });
   }
 
-  async function onShipOrder(order) {
+  async function onMarkShipped(order) {
     if (order.status !== "ready" || order.fulfillment_method !== "delivery") return;
 
-    const ok = window.confirm(`לסמן את הזמנה #${order.id} כנשלחה?`);
+    const ok = window.confirm(`לסמן את הזמנה #${order.id} כנשלחה ללקוח?`);
     if (!ok) return;
 
     try {
@@ -196,18 +210,26 @@ function DashboardApp({ user, onLogout }) {
 
   async function onCompleteOrder(order) {
     const isDelivery = order.fulfillment_method === "delivery";
-    const requiredStatus = isDelivery ? "delivering" : "ready";
-    if (order.status !== requiredStatus) return;
+    if (isDelivery && order.status !== "delivering") return;
+    if (!isDelivery && order.status !== "ready") return;
 
-    const label = isDelivery ? "כנמסרה" : "כנאספה";
-    const ok = window.confirm(`לסמן את הזמנה #${order.id} ${label}?`);
+    const ok = window.confirm(
+      isDelivery
+        ? `לסמן את הזמנה #${order.id} כנמסרה ללקוח?`
+        : `לסמן את הזמנה #${order.id} כנאספה?`,
+    );
     if (!ok) return;
 
     try {
       await setStatus.mutateAsync({ orderId: order.id, status: "completed" });
-      notify("success", `הזמנה #${order.id} סומנה ${label}`);
+      notify(
+        "success",
+        isDelivery
+          ? `הזמנה #${order.id} סומנה כנמסרה`
+          : `הזמנה #${order.id} סומנה כנאספה`,
+      );
     } catch (e) {
-      notify("error", e?.message || "שגיאה בסימון סיום הזמנה");
+      notify("error", e?.message || "שגיאה בסיום ההזמנה");
     }
   }
 
@@ -286,13 +308,15 @@ function DashboardApp({ user, onLogout }) {
   const emptyText =
     activeTab === "pending"
       ? "אין הזמנות לליקוט כרגע"
-      : activeTab === "ready"
-        ? "אין הזמנות מוכנות כרגע"
-        : activeTab === "delivering"
-        ? "אין משלוחים בדרך כרגע"
-        : activeTab === "completed"
-          ? "אין הזמנות שהסתיימו כרגע"
-          : "בקרוב…";
+      : activeTab === "readyDelivery"
+        ? "אין הזמנות מוכנות למשלוח כרגע"
+        : activeTab === "readyPickup"
+          ? "אין הזמנות מוכנות לאיסוף כרגע"
+          : activeTab === "delivering"
+            ? "אין משלוחים בדרך כרגע"
+            : activeTab === "completed"
+              ? "אין הזמנות שהסתיימו כרגע"
+              : "בקרוב…";
 
   return (
     <div className="min-h-screen">
@@ -305,19 +329,16 @@ function DashboardApp({ user, onLogout }) {
           onLogout={onLogout}
           shopInfo={businessSettings.data?.info}
           onRefresh={() => {
+            refetch();
             if (activeTab === "stock") stockRefetch?.();
             else if (activeTab === "promotions") promotionsRefetch?.();
             else if (activeTab === "settings") settingsRefetch?.();
-            else refetch();
           }}
           isRefreshing={
-            activeTab === "stock"
-              ? stockIsFetching
-              : activeTab === "promotions"
-                ? promotionsIsFetching
-                : activeTab === "settings"
-                  ? settingsIsFetching
-                  : isFetching
+            isFetching ||
+            (activeTab === "stock" && stockIsFetching) ||
+            (activeTab === "promotions" && promotionsIsFetching) ||
+            (activeTab === "settings" && settingsIsFetching)
           }
         />
 
@@ -345,6 +366,7 @@ function DashboardApp({ user, onLogout }) {
 
         {activeTab === "stock" ? (
           <StockPage
+            user={user}
             onNotify={(kind, msg) => notify(kind, msg)}
             onOrdersChanged={() => refetch()}
             onRegisterRefetch={registerStockRefetch}
@@ -358,6 +380,7 @@ function DashboardApp({ user, onLogout }) {
           />
         ) : activeTab === "settings" ? (
           <BusinessSettingsPage
+            user={user}
             onNotify={(kind, msg) => notify(kind, msg)}
             onRegisterRefetch={registerSettingsRefetch}
             onFetchingChange={setSettingsIsFetching}
@@ -378,7 +401,7 @@ function DashboardApp({ user, onLogout }) {
                   busyItemId={busyItemId}
                   onStartPicking={() => onStartPicking(order)}
                   onMarkReady={() => requestMarkReady(order)}
-                  onMarkShipped={() => onShipOrder(order)}
+                  onMarkShipped={() => onMarkShipped(order)}
                   onMarkCompleted={() => onCompleteOrder(order)}
                   onToggleItem={(orderItemId, picked) =>
                     onToggleItem(order, orderItemId, picked)

@@ -398,6 +398,20 @@ function normalizeBusinessSettings(raw) {
       about: info.about ?? "",
       min_order_amount:
         toNumberOrNull(info.min_order_amount ?? info.minOrderAmount) ?? 0,
+      min_delivery_order_amount:
+        toNumberOrNull(
+          info.min_delivery_order_amount ??
+            info.minDeliveryOrderAmount ??
+            info.min_order_amount ??
+            info.minOrderAmount,
+        ) ?? 0,
+      min_pickup_order_amount:
+        toNumberOrNull(
+          info.min_pickup_order_amount ??
+            info.minPickupOrderAmount ??
+            info.min_order_amount ??
+            info.minOrderAmount,
+        ) ?? 0,
       delivery_fee: toNumberOrNull(info.delivery_fee ?? info.deliveryFee) ?? 0,
       cart_empty_reminder_minutes:
         toNumberOrNull(
