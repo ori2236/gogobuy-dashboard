@@ -443,12 +443,14 @@ function normalizeBusinessSettings(raw) {
         normalizeTimeValue(
           info.order_same_day_cutoff_time ?? info.orderSameDayCutoffTime,
         ) || "15:00",
-      delivery_arrival_start_time: normalizeTimeValue(
-        info.delivery_arrival_start_time ?? info.deliveryArrivalStartTime,
-      ),
-      delivery_arrival_end_time: normalizeTimeValue(
-        info.delivery_arrival_end_time ?? info.deliveryArrivalEndTime,
-      ),
+      delivery_arrival_start_time:
+        normalizeTimeValue(
+          info.delivery_arrival_start_time ?? info.deliveryArrivalStartTime,
+        ) || "16:00",
+      delivery_arrival_end_time:
+        normalizeTimeValue(
+          info.delivery_arrival_end_time ?? info.deliveryArrivalEndTime,
+        ) || "18:00",
     },
     regular_hours: Array.isArray(raw.regular_hours) ? raw.regular_hours : [],
     special_hours: Array.isArray(raw.special_hours) ? raw.special_hours : [],

@@ -13,6 +13,8 @@ const DAYS = [
 ];
 
 const DEFAULT_SAME_DAY_CUTOFF_TIME = "15:00";
+const DEFAULT_DELIVERY_ARRIVAL_START_TIME = "16:00";
+const DEFAULT_DELIVERY_ARRIVAL_END_TIME = "18:00";
 
 const EMPTY_INFO = {
   name: "",
@@ -35,8 +37,8 @@ const EMPTY_INFO = {
   stock_release_after_inactive_minutes: 30,
   max_order_quantity_per_product: 10,
   order_same_day_cutoff_time: DEFAULT_SAME_DAY_CUTOFF_TIME,
-  delivery_arrival_start_time: "",
-  delivery_arrival_end_time: "",
+  delivery_arrival_start_time: DEFAULT_DELIVERY_ARRIVAL_START_TIME,
+  delivery_arrival_end_time: DEFAULT_DELIVERY_ARRIVAL_END_TIME,
 };
 
 function emptyRegularHours() {
@@ -233,8 +235,8 @@ export function BusinessSettingsPage({ user, onNotify, onRegisterRefetch, onFetc
       cart_empty_reminder_minutes: Number(dataInfo.cart_empty_reminder_minutes || 0) < 5 ? 5 : dataInfo.cart_empty_reminder_minutes,
       stock_release_after_inactive_minutes: Number(dataInfo.stock_release_after_inactive_minutes || 0) < 30 ? 30 : dataInfo.stock_release_after_inactive_minutes,
       order_same_day_cutoff_time: dataInfo.order_same_day_cutoff_time || DEFAULT_SAME_DAY_CUTOFF_TIME,
-      delivery_arrival_start_time: dataInfo.delivery_arrival_start_time || "",
-      delivery_arrival_end_time: dataInfo.delivery_arrival_end_time || "",
+      delivery_arrival_start_time: dataInfo.delivery_arrival_start_time || DEFAULT_DELIVERY_ARRIVAL_START_TIME,
+      delivery_arrival_end_time: dataInfo.delivery_arrival_end_time || DEFAULT_DELIVERY_ARRIVAL_END_TIME,
     });
     setRegularHours(normalizeRegular(settings.data.regular_hours));
     setSpecialHours(
@@ -336,8 +338,8 @@ export function BusinessSettingsPage({ user, onNotify, onRegisterRefetch, onFetc
         stock_release_after_inactive_minutes: stockRelease,
         max_order_quantity_per_product: Math.max(10, Number(info.max_order_quantity_per_product || 10)),
         order_same_day_cutoff_time: info.order_same_day_cutoff_time || DEFAULT_SAME_DAY_CUTOFF_TIME,
-        delivery_arrival_start_time: info.delivery_arrival_start_time || "",
-        delivery_arrival_end_time: info.delivery_arrival_end_time || "",
+        delivery_arrival_start_time: info.delivery_arrival_start_time || DEFAULT_DELIVERY_ARRIVAL_START_TIME,
+        delivery_arrival_end_time: info.delivery_arrival_end_time || DEFAULT_DELIVERY_ARRIVAL_END_TIME,
       };
 
       await saveSettings.mutateAsync({
@@ -508,8 +510,8 @@ export function BusinessSettingsPage({ user, onNotify, onRegisterRefetch, onFetc
                     <TextInput
                       type="time"
                       disabled={disabled}
-                      value={info.delivery_arrival_start_time || ""}
-                      onChange={(e) => changeInfo("delivery_arrival_start_time", e.target.value)}
+                      value={info.delivery_arrival_start_time || DEFAULT_DELIVERY_ARRIVAL_START_TIME}
+                      onChange={(e) => changeInfo("delivery_arrival_start_time", e.target.value || DEFAULT_DELIVERY_ARRIVAL_START_TIME)}
                       dir="ltr"
                     />
                   </Field>
@@ -520,8 +522,8 @@ export function BusinessSettingsPage({ user, onNotify, onRegisterRefetch, onFetc
                     <TextInput
                       type="time"
                       disabled={disabled}
-                      value={info.delivery_arrival_end_time || ""}
-                      onChange={(e) => changeInfo("delivery_arrival_end_time", e.target.value)}
+                      value={info.delivery_arrival_end_time || DEFAULT_DELIVERY_ARRIVAL_END_TIME}
+                      onChange={(e) => changeInfo("delivery_arrival_end_time", e.target.value || DEFAULT_DELIVERY_ARRIVAL_END_TIME)}
                       dir="ltr"
                     />
                   </Field>
