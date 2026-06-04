@@ -125,6 +125,16 @@ function toNumberOrNull(value) {
   return Number.isFinite(n) ? n : null;
 }
 
+function normalizeTimeValue(value) {
+  const s = String(value ?? "").trim();
+  const m = s.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+  if (!m) return "";
+  const h = Number(m[1]);
+  const min = Number(m[2]);
+  if (!Number.isInteger(h) || !Number.isInteger(min) || h < 0 || h > 23 || min < 0 || min > 59) return "";
+  return `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
+}
+
 function normalizeItem(raw) {
   const soldByWeight = toBool(raw.sold_by_weight ?? raw.soldByWeight, false);
   const unit =
@@ -429,6 +439,16 @@ function normalizeBusinessSettings(raw) {
           info.max_order_quantity_per_product ??
             info.maxOrderQuantityPerProduct,
         ) ?? 10,
+      order_same_day_cutoff_time:
+        normalizeTimeValue(
+          info.order_same_day_cutoff_time ?? info.orderSameDayCutoffTime,
+        ) || "15:00",
+      delivery_arrival_start_time: normalizeTimeValue(
+        info.delivery_arrival_start_time ?? info.deliveryArrivalStartTime,
+      ),
+      delivery_arrival_end_time: normalizeTimeValue(
+        info.delivery_arrival_end_time ?? info.deliveryArrivalEndTime,
+      ),
     },
     regular_hours: Array.isArray(raw.regular_hours) ? raw.regular_hours : [],
     special_hours: Array.isArray(raw.special_hours) ? raw.special_hours : [],

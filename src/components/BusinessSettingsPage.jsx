@@ -12,6 +12,8 @@ const DAYS = [
   { value: 6, label: "שבת" },
 ];
 
+const DEFAULT_SAME_DAY_CUTOFF_TIME = "15:00";
+
 const EMPTY_INFO = {
   name: "",
   chain_name: "",
@@ -32,6 +34,9 @@ const EMPTY_INFO = {
   cart_empty_reminder_minutes: 5,
   stock_release_after_inactive_minutes: 30,
   max_order_quantity_per_product: 10,
+  order_same_day_cutoff_time: DEFAULT_SAME_DAY_CUTOFF_TIME,
+  delivery_arrival_start_time: "",
+  delivery_arrival_end_time: "",
 };
 
 function emptyRegularHours() {
@@ -227,6 +232,9 @@ export function BusinessSettingsPage({ user, onNotify, onRegisterRefetch, onFetc
         dataInfo.min_pickup_order_amount ?? legacyMin,
       cart_empty_reminder_minutes: Number(dataInfo.cart_empty_reminder_minutes || 0) < 5 ? 5 : dataInfo.cart_empty_reminder_minutes,
       stock_release_after_inactive_minutes: Number(dataInfo.stock_release_after_inactive_minutes || 0) < 30 ? 30 : dataInfo.stock_release_after_inactive_minutes,
+      order_same_day_cutoff_time: dataInfo.order_same_day_cutoff_time || DEFAULT_SAME_DAY_CUTOFF_TIME,
+      delivery_arrival_start_time: dataInfo.delivery_arrival_start_time || "",
+      delivery_arrival_end_time: dataInfo.delivery_arrival_end_time || "",
     });
     setRegularHours(normalizeRegular(settings.data.regular_hours));
     setSpecialHours(
@@ -259,6 +267,14 @@ export function BusinessSettingsPage({ user, onNotify, onRegisterRefetch, onFetc
     if (stockRelease < 30) errors.push("החזרת מוצרים למלאי חייבת להיות לפחות 30 דקות");
     if (cartReminder >= stockRelease) errors.push("תזכורת לעגלה לא מאושרת חייבת להיות נמוכה מזמן החזרת המוצרים למלאי");
     if (maxPerProduct < 10) errors.push("מקסימום הזמנה ממוצר אחד חייב להיות לפחות 10");
+    const arrivalStart = String(info.delivery_arrival_start_time || "").trim();
+    const arrivalEnd = String(info.delivery_arrival_end_time || "").trim();
+    if ((arrivalStart && !arrivalEnd) || (!arrivalStart && arrivalEnd)) {
+      errors.push("בשעות הגעה ללקוחות צריך למלא גם שעת התחלה וגם שעת סיום");
+    }
+    if (arrivalStart && arrivalEnd && arrivalStart >= arrivalEnd) {
+      errors.push("שעת סיום ההגעה חייבת להיות אחרי שעת ההתחלה");
+    }
     return errors;
   }, [info]);
 
@@ -319,6 +335,9 @@ export function BusinessSettingsPage({ user, onNotify, onRegisterRefetch, onFetc
         cart_empty_reminder_minutes: cartReminder,
         stock_release_after_inactive_minutes: stockRelease,
         max_order_quantity_per_product: Math.max(10, Number(info.max_order_quantity_per_product || 10)),
+        order_same_day_cutoff_time: info.order_same_day_cutoff_time || DEFAULT_SAME_DAY_CUTOFF_TIME,
+        delivery_arrival_start_time: info.delivery_arrival_start_time || "",
+        delivery_arrival_end_time: info.delivery_arrival_end_time || "",
       };
 
       await saveSettings.mutateAsync({
@@ -468,6 +487,45 @@ export function BusinessSettingsPage({ user, onNotify, onRegisterRefetch, onFetc
                   disabled={disabled}
                   onChange={(value) => changeInfo("delivery_fee", value)}
                 />
+                <Field
+                  label="שעת קבלת הזמנות לאספקה היום"
+                  help="ברירת המחדל היא 15:00. הזמנות משלוח שיאושרו עד שעה זו מיועדות לצאת היום; הזמנות לאחר מכן יטופלו כיום המשלוח הבא."
+                >
+                  <TextInput
+                    type="time"
+                    disabled={disabled}
+                    value={info.order_same_day_cutoff_time || DEFAULT_SAME_DAY_CUTOFF_TIME}
+                    onChange={(e) => changeInfo("order_same_day_cutoff_time", e.target.value || DEFAULT_SAME_DAY_CUTOFF_TIME)}
+                    dir="ltr"
+                  />
+                </Field>
+                <div className="grid gap-3 rounded-2xl border border-white bg-white/80 p-3 shadow-sm sm:grid-cols-2">
+                  <div className="sm:col-span-2 text-right text-xs font-extrabold text-slate-500">שעות הגעה ללקוחות</div>
+                  <Field
+                    label="משעה"
+                    help="תחילת חלון ההגעה המשוער ללקוחות."
+                  >
+                    <TextInput
+                      type="time"
+                      disabled={disabled}
+                      value={info.delivery_arrival_start_time || ""}
+                      onChange={(e) => changeInfo("delivery_arrival_start_time", e.target.value)}
+                      dir="ltr"
+                    />
+                  </Field>
+                  <Field
+                    label="עד שעה"
+                    help="סיום חלון ההגעה המשוער ללקוחות."
+                  >
+                    <TextInput
+                      type="time"
+                      disabled={disabled}
+                      value={info.delivery_arrival_end_time || ""}
+                      onChange={(e) => changeInfo("delivery_arrival_end_time", e.target.value)}
+                      dir="ltr"
+                    />
+                  </Field>
+                </div>
                 <NumberField
                   label="תזכורת לעגלה לא מאושרת"
                   unit="דקות"

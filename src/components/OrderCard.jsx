@@ -153,18 +153,24 @@ export function OrderCard({
     }
   }
 
+  function renderPdfButton(className = "btn-outline") {
+    return (
+      <button
+        className={className}
+        dir="rtl"
+        onClick={handleDownloadPdf}
+        disabled={pdfBusy}
+      >
+        {pdfBusy ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+        הורד PDF
+      </button>
+    );
+  }
+
   function renderReadonlyActions() {
     return (
       <div className="flex flex-col gap-2 sm:flex-row sm:justify-start" dir="ltr">
-        <button
-          className="btn-outline"
-          dir="rtl"
-          onClick={handleDownloadPdf}
-          disabled={pdfBusy}
-        >
-          {pdfBusy ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-          הורד PDF
-        </button>
+        {renderPdfButton()}
 
         {compactCollapsed ? (
           <button className="btn-outline" dir="rtl" onClick={() => setDetailsExpanded(true)}>
@@ -351,14 +357,17 @@ export function OrderCard({
               <div className="text-right text-xs font-semibold text-slate-500">
                 התחלת ליקוט תעדכן את הלקוח שההזמנה בטיפול.
               </div>
-              <button className="btn-primary" onClick={onStartPicking} disabled={busy}>
-                {busy ? (
-                  <RefreshCw className="h-4 w-4 animate-spin" />
-                ) : (
-                  <PlayCircle className="h-4 w-4" />
-                )}
-                התחל ללקט
-              </button>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                {renderPdfButton()}
+                <button className="btn-primary" onClick={onStartPicking} disabled={busy}>
+                  {busy ? (
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <PlayCircle className="h-4 w-4" />
+                  )}
+                  התחל ללקט
+                </button>
+              </div>
             </div>
           ) : (
             <>
@@ -368,26 +377,29 @@ export function OrderCard({
               </div>
 
               <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
-                <button
-                  className={cn(
-                    canMarkReady(order) ? "btn-success" : "btn-secondary",
-                    "w-full sm:w-[170px] sm:shrink-0",
-                  )}
-                  onClick={onMarkReady}
-                  disabled={busy || !canMarkReady(order) || isReady}
-                  title={
-                    !canMarkReady(order)
-                      ? "אפשר רק אחרי שכל המוצרים מסומנים ובסטטוס 'בליקוט'"
-                      : ""
-                  }
-                >
+                <div className="flex w-full flex-col gap-2 sm:w-[170px] sm:shrink-0">
+                  {renderPdfButton("btn-outline w-full")}
+                  <button
+                    className={cn(
+                      canMarkReady(order) ? "btn-success" : "btn-secondary",
+                      "w-full",
+                    )}
+                    onClick={onMarkReady}
+                    disabled={busy || !canMarkReady(order) || isReady}
+                    title={
+                      !canMarkReady(order)
+                        ? "אפשר רק אחרי שכל המוצרים מסומנים ובסטטוס 'בליקוט'"
+                        : ""
+                    }
+                  >
                   {busy ? (
                     <RefreshCw className="h-4 w-4 animate-spin" />
                   ) : (
                     <Send className="h-4 w-4" />
                   )}
-                  הזמנה מוכנה
-                </button>
+                    הזמנה מוכנה
+                  </button>
+                </div>
 
                 <textarea
                   className="w-full flex-1 rounded-2xl border border-slate-200 bg-white px-3 py-1 text-sm text-slate-900 shadow-sm outline-none focus:border-slate-900 text-right"
