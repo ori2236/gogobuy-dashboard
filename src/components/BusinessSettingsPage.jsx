@@ -489,7 +489,7 @@ export function BusinessSettingsPage({ user, onNotify, onRegisterRefetch, onFetc
                 />
                 <Field
                   label="שעת קבלת הזמנות לאספקה היום"
-                  help="ברירת המחדל היא 15:00. הזמנות משלוח שיאושרו עד שעה זו מיועדות לצאת היום; הזמנות לאחר מכן יטופלו כיום המשלוח הבא."
+                  help="ברירת המחדל היא 15:00. הזמנות משלוח שיאושרו עד שעה זו מיועדות לצאת היום; לאחר מכן יעברו ליום העסקים הבא. אין משלוחים בשישי ושבת."
                 >
                   <TextInput
                     type="time"
@@ -500,10 +500,10 @@ export function BusinessSettingsPage({ user, onNotify, onRegisterRefetch, onFetc
                   />
                 </Field>
                 <div className="grid gap-3 rounded-2xl border border-white bg-white/80 p-3 shadow-sm sm:grid-cols-2">
-                  <div className="sm:col-span-2 text-right text-xs font-extrabold text-slate-500">שעות הגעה ללקוחות</div>
+                  <div className="sm:col-span-2 text-right text-xs font-extrabold text-slate-500">שעות הגעה ללקוחות באותו יום</div>
                   <Field
                     label="משעה"
-                    help="תחילת חלון ההגעה המשוער ללקוחות."
+                    help="תחילת חלון ההגעה המשוער שהבוט יציג ללקוחות שבוחרים משלוח."
                   >
                     <TextInput
                       type="time"
@@ -515,7 +515,7 @@ export function BusinessSettingsPage({ user, onNotify, onRegisterRefetch, onFetc
                   </Field>
                   <Field
                     label="עד שעה"
-                    help="סיום חלון ההגעה המשוער ללקוחות."
+                    help="סיום חלון ההגעה המשוער שהבוט יציג ללקוחות שבוחרים משלוח."
                   >
                     <TextInput
                       type="time"
