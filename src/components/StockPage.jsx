@@ -452,12 +452,12 @@ export function StockPage({
                     return (
                       <tr
                         key={p.id}
-                        className="relative hover:bg-slate-50"
+                        className={p.is_default ? "relative bg-emerald-50/20 hover:bg-emerald-50/35" : "relative hover:bg-slate-50"}
                       >
                         <td className="relative px-3 py-3 text-center text-xl">
                           {p.is_default ? (
                             <span
-                              className="absolute right-1 top-1/2 h-12 w-2 -translate-y-1/2 rounded-full bg-emerald-500/90 shadow-sm"
+                              className="pointer-events-none absolute right-0 top-4 bottom-4 w-[3px] rounded-l-full bg-emerald-400/70"
                               title="מוצר דיפולטיבי"
                               aria-label="מוצר דיפולטיבי"
                             />

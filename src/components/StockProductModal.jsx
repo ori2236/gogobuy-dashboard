@@ -167,7 +167,7 @@ export function StockProductModal({
                 {isEdit ? "עריכת מוצר" : "הוספת מוצר"}
               </div>
               <div className="mt-1 text-sm text-slate-600">
-                עדכן את פרטי המוצר וסימון הדיפולטיביות.
+                עדכן את פרטי המוצר שיופיעו במלאי.
               </div>
             </div>
           </div>
@@ -245,22 +245,20 @@ export function StockProductModal({
                 />
               </div>
 
-              <div className="sm:col-span-12">
-                <label className="flex cursor-pointer items-center justify-between gap-3 rounded-2xl border border-emerald-100 bg-emerald-50/70 px-4 py-2.5 text-right text-sm text-slate-800">
-                  <span className="min-w-0">
-                    <span className="font-extrabold text-emerald-800">
-                      מוצר דיפולטיבי
-                    </span>
-                    <span className="mx-2 text-xs font-semibold text-slate-600">
-                      המוצר יתועדף למשתמש על פני מוצרים אחרים עם שם דומה.
-                    </span>
-                  </span>
+              <div className="sm:col-span-12 -mt-1">
+                <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-semibold text-slate-500">
                   <input
                     className="h-4 w-4 shrink-0 accent-emerald-600"
                     type="checkbox"
                     checked={isDefault}
                     onChange={(e) => setIsDefault(e.target.checked)}
                   />
+                  <span className="font-bold text-slate-700">
+                    מוצר דיפולטיבי
+                  </span>
+                  <span>
+                    יתועדף מול מוצרים עם שם דומה.
+                  </span>
                 </label>
               </div>
 
