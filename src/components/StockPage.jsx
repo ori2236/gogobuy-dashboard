@@ -409,6 +409,7 @@ export function StockPage({
                   <th className="px-3 py-3">אימוג׳י</th>
                   <th className="px-4 py-3">שם</th>
                   <th className="px-4 py-3">שם באנגלית</th>
+                  <th className="px-3 py-3">דיפולטיבי</th>
                   <th className="px-3 py-3">מחיר</th>
                   <th className="px-3 py-3">מלאי</th>
                   <th className="px-4 py-3">קטגוריה</th>
@@ -422,7 +423,7 @@ export function StockPage({
                   <tr>
                     <td
                       className="px-4 py-10 text-center text-slate-500"
-                      colSpan={8}
+                      colSpan={9}
                     >
                       בחר קטגוריה או הקלד לפחות 2 אותיות כדי להציג מוצרים
                     </td>
@@ -431,7 +432,7 @@ export function StockPage({
                   <tr>
                     <td
                       className="px-4 py-10 text-center text-slate-500"
-                      colSpan={8}
+                      colSpan={9}
                     >
                       טוען מוצרים…
                     </td>
@@ -440,7 +441,7 @@ export function StockPage({
                   <tr>
                     <td
                       className="px-4 py-10 text-center text-rose-700"
-                      colSpan={8}
+                      colSpan={9}
                     >
                       שגיאה בטעינת מוצרים:{" "}
                       {String(productsQuery.error?.message || "")}
@@ -461,6 +462,16 @@ export function StockPage({
 
                         <td className="px-4 py-3 text-slate-700" dir="ltr">
                           {p.display_name_en || "—"}
+                        </td>
+
+                        <td className="px-3 py-3 text-center">
+                          {p.is_default ? (
+                            <span className="pill bg-emerald-50 text-emerald-700">
+                              דיפולטיבי
+                            </span>
+                          ) : (
+                            <span className="text-slate-300">—</span>
+                          )}
                         </td>
 
                         <td className="px-3 py-3 text-slate-900">
@@ -526,7 +537,7 @@ export function StockPage({
                   <tr>
                     <td
                       className="px-4 py-10 text-center text-slate-500"
-                      colSpan={8}
+                      colSpan={9}
                     >
                       אין תוצאות.
                     </td>

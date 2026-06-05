@@ -245,6 +245,7 @@ function normalizeStockProduct(raw) {
       raw.stock_amount === null || raw.stock_amount === undefined
         ? null
         : Number(raw.stock_amount),
+    is_default: toBool(raw.is_default ?? raw.isDefault, false),
     stock_unit: raw.stock_unit ?? raw.stockUnit ?? null,
     emoji: raw.emoji ?? raw.product_emoji ?? raw.productEmoji ?? null,
     subcategory_emoji:

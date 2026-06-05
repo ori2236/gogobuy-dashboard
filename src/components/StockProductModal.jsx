@@ -38,6 +38,7 @@ export function StockProductModal({
   const [category, setCategory] = useState("");
   const [subCategory, setSubCategory] = useState("");
   const [emoji, setEmoji] = useState("");
+  const [isDefault, setIsDefault] = useState(false);
   const [err, setErr] = useState("");
 
   const categoryList = useMemo(
@@ -75,6 +76,7 @@ export function StockProductModal({
       setCategory(product.category || "");
       setSubCategory(product.sub_category || "");
       setEmoji(cleanEmojiDisplay(product.emoji));
+      setIsDefault(Boolean(product.is_default));
     } else {
       setName("");
       setDisplayNameEn("");
@@ -83,6 +85,7 @@ export function StockProductModal({
       setCategory("");
       setSubCategory("");
       setEmoji("");
+      setIsDefault(false);
     }
   }, [open, isEdit, product]);
 
@@ -138,6 +141,7 @@ export function StockProductModal({
       category,
       sub_category: subCategory,
       emoji: cleanEmojiDisplay(emoji),
+      is_default: isDefault,
     });
   }
 
@@ -163,7 +167,7 @@ export function StockProductModal({
                 {isEdit ? "עריכת מוצר" : "הוספת מוצר"}
               </div>
               <div className="mt-1 text-sm text-slate-600">
-                עדכן שם, מחיר, מלאי, קטגוריות ואימוג׳י שיופיע ליד המוצר.
+                עדכן שם, מחיר, מלאי, קטגוריות, אימוג׳י והאם זה מוצר דיפולטיבי.
               </div>
             </div>
           </div>
@@ -239,6 +243,25 @@ export function StockProductModal({
                   inputMode="decimal"
                   placeholder="לדוגמה: 12"
                 />
+              </div>
+
+              <div className="sm:col-span-12">
+                <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-right text-sm text-slate-800">
+                  <input
+                    className="mt-1 h-4 w-4 accent-emerald-600"
+                    type="checkbox"
+                    checked={isDefault}
+                    onChange={(e) => setIsDefault(e.target.checked)}
+                  />
+                  <span>
+                    <span className="block font-extrabold text-emerald-800">
+                      מוצר דיפולטיבי
+                    </span>
+                    <span className="mt-1 block text-xs font-semibold text-slate-600">
+                      כשמסמנים מוצר כדיפולטיבי, הסימון נשמר לכל הרשת לפי אותו שם מוצר.
+                    </span>
+                  </span>
+                </label>
               </div>
 
               <div className="sm:col-span-6">
