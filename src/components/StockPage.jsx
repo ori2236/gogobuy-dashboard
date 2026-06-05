@@ -409,7 +409,6 @@ export function StockPage({
                   <th className="px-3 py-3">אימוג׳י</th>
                   <th className="px-4 py-3">שם</th>
                   <th className="px-4 py-3">שם באנגלית</th>
-                  <th className="px-3 py-3">דיפולטיבי</th>
                   <th className="px-3 py-3">מחיר</th>
                   <th className="px-3 py-3">מלאי</th>
                   <th className="px-4 py-3">קטגוריה</th>
@@ -423,7 +422,7 @@ export function StockPage({
                   <tr>
                     <td
                       className="px-4 py-10 text-center text-slate-500"
-                      colSpan={9}
+                      colSpan={8}
                     >
                       בחר קטגוריה או הקלד לפחות 2 אותיות כדי להציג מוצרים
                     </td>
@@ -432,7 +431,7 @@ export function StockPage({
                   <tr>
                     <td
                       className="px-4 py-10 text-center text-slate-500"
-                      colSpan={9}
+                      colSpan={8}
                     >
                       טוען מוצרים…
                     </td>
@@ -441,7 +440,7 @@ export function StockPage({
                   <tr>
                     <td
                       className="px-4 py-10 text-center text-rose-700"
-                      colSpan={9}
+                      colSpan={8}
                     >
                       שגיאה בטעינת מוצרים:{" "}
                       {String(productsQuery.error?.message || "")}
@@ -451,8 +450,18 @@ export function StockPage({
                   products.map((p) => {
                     const unit = stockUnitLabel(p.stock_unit);
                     return (
-                      <tr key={p.id} className="hover:bg-slate-50">
-                        <td className="px-3 py-3 text-center text-xl">
+                      <tr
+                        key={p.id}
+                        className="relative hover:bg-slate-50"
+                      >
+                        <td className="relative px-3 py-3 text-center text-xl">
+                          {p.is_default ? (
+                            <span
+                              className="absolute right-1 top-1/2 h-12 w-2 -translate-y-1/2 rounded-full bg-emerald-500/90 shadow-sm"
+                              title="מוצר דיפולטיבי"
+                              aria-label="מוצר דיפולטיבי"
+                            />
+                          ) : null}
                           {cleanEmojiDisplay(p.emoji) || cleanEmojiDisplay(p.subcategory_emoji) || "—"}
                         </td>
 
@@ -464,15 +473,6 @@ export function StockPage({
                           {p.display_name_en || "—"}
                         </td>
 
-                        <td className="px-3 py-3 text-center">
-                          {p.is_default ? (
-                            <span className="pill bg-emerald-50 text-emerald-700">
-                              דיפולטיבי
-                            </span>
-                          ) : (
-                            <span className="text-slate-300">—</span>
-                          )}
-                        </td>
 
                         <td className="px-3 py-3 text-slate-900">
                           {fmtPrice(p.price)}
@@ -537,7 +537,7 @@ export function StockPage({
                   <tr>
                     <td
                       className="px-4 py-10 text-center text-slate-500"
-                      colSpan={9}
+                      colSpan={8}
                     >
                       אין תוצאות.
                     </td>
