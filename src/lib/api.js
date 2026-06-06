@@ -430,6 +430,13 @@ function normalizeBusinessSettings(raw) {
         toNumberOrNull(
           info.cart_empty_reminder_minutes ?? info.cartEmptyReminderMinutes,
         ) ?? 5,
+      idle_customer_reminder_minutes:
+        toNumberOrNull(
+          info.idle_customer_reminder_minutes ??
+            info.idleCustomerReminderMinutes ??
+            info.pre_cart_reminder_minutes ??
+            info.preCartReminderMinutes,
+        ) ?? 10,
       stock_release_after_inactive_minutes:
         toNumberOrNull(
           info.stock_release_after_inactive_minutes ??

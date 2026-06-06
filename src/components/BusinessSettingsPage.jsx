@@ -34,6 +34,7 @@ const EMPTY_INFO = {
   min_pickup_order_amount: 0,
   delivery_fee: 0,
   cart_empty_reminder_minutes: 5,
+  idle_customer_reminder_minutes: 10,
   stock_release_after_inactive_minutes: 30,
   max_order_quantity_per_product: 10,
   order_same_day_cutoff_time: DEFAULT_SAME_DAY_CUTOFF_TIME,
@@ -233,6 +234,7 @@ export function BusinessSettingsPage({ user, onNotify, onRegisterRefetch, onFetc
       min_pickup_order_amount:
         dataInfo.min_pickup_order_amount ?? legacyMin,
       cart_empty_reminder_minutes: Number(dataInfo.cart_empty_reminder_minutes || 0) < 5 ? 5 : dataInfo.cart_empty_reminder_minutes,
+      idle_customer_reminder_minutes: Number(dataInfo.idle_customer_reminder_minutes ?? 10),
       stock_release_after_inactive_minutes: Number(dataInfo.stock_release_after_inactive_minutes || 0) < 30 ? 30 : dataInfo.stock_release_after_inactive_minutes,
       order_same_day_cutoff_time: dataInfo.order_same_day_cutoff_time || DEFAULT_SAME_DAY_CUTOFF_TIME,
       delivery_arrival_start_time: dataInfo.delivery_arrival_start_time || DEFAULT_DELIVERY_ARRIVAL_START_TIME,
@@ -263,9 +265,11 @@ export function BusinessSettingsPage({ user, onNotify, onRegisterRefetch, onFetc
     if (!String(info.name || "").trim()) errors.push("חובה למלא שם סניף");
     if (!String(info.address || "").trim()) errors.push("חובה למלא כתובת");
     const cartReminder = Number(info.cart_empty_reminder_minutes || 0);
+    const idleCustomerReminder = Number(info.idle_customer_reminder_minutes || 0);
     const stockRelease = Number(info.stock_release_after_inactive_minutes || 0);
     const maxPerProduct = Number(info.max_order_quantity_per_product || 0);
     if (cartReminder < 5) errors.push("תזכורת לעגלה לא מאושרת חייבת להיות לפחות 5 דקות");
+    if (idleCustomerReminder < 0) errors.push("תזכורת לפני התחלת עגלה לא יכולה להיות שלילית");
     if (stockRelease < 30) errors.push("החזרת מוצרים למלאי חייבת להיות לפחות 30 דקות");
     if (cartReminder >= stockRelease) errors.push("תזכורת לעגלה לא מאושרת חייבת להיות נמוכה מזמן החזרת המוצרים למלאי");
     if (maxPerProduct < 10) errors.push("מקסימום הזמנה ממוצר אחד חייב להיות לפחות 10");
@@ -327,6 +331,8 @@ export function BusinessSettingsPage({ user, onNotify, onRegisterRefetch, onFetc
     try {
       const stockRelease = Math.max(30, Number(info.stock_release_after_inactive_minutes || 30));
       const cartReminder = Math.max(5, Number(info.cart_empty_reminder_minutes || 5));
+      const rawIdleReminder = Number(info.idle_customer_reminder_minutes ?? 10);
+      const idleCustomerReminder = Number.isFinite(rawIdleReminder) && rawIdleReminder > 0 ? Math.max(1, Math.floor(rawIdleReminder)) : 0;
       const minDelivery = Math.max(0, Number(info.min_delivery_order_amount || 0));
       const minPickup = Math.max(0, Number(info.min_pickup_order_amount || 0));
       const normalizedInfo = {
@@ -335,6 +341,7 @@ export function BusinessSettingsPage({ user, onNotify, onRegisterRefetch, onFetc
         min_delivery_order_amount: minDelivery,
         min_pickup_order_amount: minPickup,
         cart_empty_reminder_minutes: cartReminder,
+        idle_customer_reminder_minutes: idleCustomerReminder,
         stock_release_after_inactive_minutes: stockRelease,
         max_order_quantity_per_product: Math.max(10, Number(info.max_order_quantity_per_product || 10)),
         order_same_day_cutoff_time: info.order_same_day_cutoff_time || DEFAULT_SAME_DAY_CUTOFF_TIME,
@@ -390,6 +397,8 @@ export function BusinessSettingsPage({ user, onNotify, onRegisterRefetch, onFetc
   const disabled = !canEdit || saveSettings.isPending;
   const zoneOptions = settings.data?.delivery_zone_options || [];
   const cartReminderValue = Number(info.cart_empty_reminder_minutes || 0);
+  const idleCustomerReminderValue = Number(info.idle_customer_reminder_minutes || 0);
+  const idleCustomerReminderEnabled = idleCustomerReminderValue > 0;
   const stockReleaseValue = Number(info.stock_release_after_inactive_minutes || 0);
   const maxPerProductValue = Number(info.max_order_quantity_per_product || 0);
   const cartReminderError = cartReminderValue < 5
@@ -397,6 +406,7 @@ export function BusinessSettingsPage({ user, onNotify, onRegisterRefetch, onFetc
     : cartReminderValue >= stockReleaseValue
       ? "חייב להיות נמוך מהחזרת מוצרים למלאי"
       : "";
+  const idleCustomerReminderError = idleCustomerReminderValue < 0 ? "לא יכול להיות שלילי" : "";
   const stockReleaseError = stockReleaseValue < 30 ? "מינימום 30 דקות" : "";
   const maxPerProductError = maxPerProductValue < 10 ? "מינימום 10" : "";
 
@@ -527,6 +537,30 @@ export function BusinessSettingsPage({ user, onNotify, onRegisterRefetch, onFetc
                       dir="ltr"
                     />
                   </Field>
+                </div>
+                <div className="grid gap-3 rounded-2xl border border-white bg-white/80 p-3 shadow-sm">
+                  <ToggleCard
+                    label="תזכורת למי שכתב ולא התחיל עגלה"
+                    checked={idleCustomerReminderEnabled}
+                    disabled={disabled}
+                    onChange={(enabled) => changeInfo("idle_customer_reminder_minutes", enabled ? 10 : 0)}
+                  />
+                  {idleCustomerReminderEnabled ? (
+                    <NumberField
+                      label="שליחה אחרי"
+                      unit="דקות"
+                      min={1}
+                      value={info.idle_customer_reminder_minutes ?? 10}
+                      disabled={disabled}
+                      onChange={(value) => changeInfo("idle_customer_reminder_minutes", value)}
+                      help="אם לקוח כתב לבוט, לא התחיל עגלה ולא המשיך את השיחה — תישלח לו הודעת עזרה קצרה אחרי הזמן הזה. כיבוי המתג מבטל את הפיצ׳ר לגמרי."
+                      error={idleCustomerReminderError}
+                    />
+                  ) : (
+                    <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-2.5 text-right text-xs font-semibold leading-5 text-slate-500">
+                      כבוי — לא תישלח הודעת המשך ללקוחות שלא התחילו עגלה.
+                    </div>
+                  )}
                 </div>
                 <NumberField
                   label="תזכורת לעגלה לא מאושרת"
