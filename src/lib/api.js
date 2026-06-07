@@ -392,6 +392,57 @@ export async function deletePromotion(id) {
 }
 
 
+
+function normalizeStaffWhatsappRecipient(raw) {
+  return {
+    id: Number(raw.id),
+    shop_id: Number(raw.shop_id ?? raw.shopId ?? getShopId()),
+    phone: raw.phone ?? "",
+    is_active: toBool(raw.is_active ?? raw.isActive, true),
+    notify_new_orders: toBool(
+      raw.notify_new_orders ?? raw.notifyNewOrders,
+      true,
+    ),
+    created_at: raw.created_at ?? raw.createdAt ?? null,
+    updated_at: raw.updated_at ?? raw.updatedAt ?? null,
+  };
+}
+
+export async function getStaffWhatsappRecipients() {
+  const res = await fetchJSON(`/api/dashboard/settings/staff-whatsapp-recipients`);
+  const list = res.recipients ?? res.data ?? res.items ?? [];
+  return Array.isArray(list) ? list.map(normalizeStaffWhatsappRecipient) : [];
+}
+
+export async function createStaffWhatsappRecipient(payload) {
+  const res = await fetchJSON(`/api/dashboard/settings/staff-whatsapp-recipients`, {
+    method: "POST",
+    body: JSON.stringify(payload || {}),
+  });
+  return normalizeStaffWhatsappRecipient(res.recipient ?? res);
+}
+
+export async function updateStaffWhatsappRecipient(id, payload) {
+  const res = await fetchJSON(`/api/dashboard/settings/staff-whatsapp-recipients/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload || {}),
+  });
+  return normalizeStaffWhatsappRecipient(res.recipient ?? res);
+}
+
+export async function deleteStaffWhatsappRecipient(id) {
+  return await fetchJSON(`/api/dashboard/settings/staff-whatsapp-recipients/${id}`, {
+    method: "DELETE",
+  });
+}
+
+export async function sendStaffWhatsappRecipientTest(id) {
+  return await fetchJSON(`/api/dashboard/settings/staff-whatsapp-recipients/${id}/test`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}
+
 function normalizeBusinessSettings(raw) {
   const info = raw.info ?? raw.shop ?? {};
   return {

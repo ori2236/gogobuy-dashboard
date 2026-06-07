@@ -20,6 +20,11 @@ import {
   deletePromotion,
   getBusinessSettings,
   updateBusinessSettings,
+  getStaffWhatsappRecipients,
+  createStaffWhatsappRecipient,
+  updateStaffWhatsappRecipient,
+  deleteStaffWhatsappRecipient,
+  sendStaffWhatsappRecipientTest,
   getShopId,
 } from "./api";
 
@@ -226,5 +231,50 @@ export function useUpdateBusinessSettings() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["businessSettings"] });
     },
+  });
+}
+
+
+export function useStaffWhatsappRecipients() {
+  return useQuery({
+    queryKey: ["staffWhatsappRecipients", getShopId()],
+    queryFn: () => getStaffWhatsappRecipients(),
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    staleTime: 30_000,
+  });
+}
+
+function invalidateStaffWhatsappRecipients(qc) {
+  qc.invalidateQueries({ queryKey: ["staffWhatsappRecipients"] });
+}
+
+export function useCreateStaffWhatsappRecipient() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload) => createStaffWhatsappRecipient(payload),
+    onSuccess: () => invalidateStaffWhatsappRecipients(qc),
+  });
+}
+
+export function useUpdateStaffWhatsappRecipient() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }) => updateStaffWhatsappRecipient(id, payload),
+    onSuccess: () => invalidateStaffWhatsappRecipients(qc),
+  });
+}
+
+export function useDeleteStaffWhatsappRecipient() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id) => deleteStaffWhatsappRecipient(id),
+    onSuccess: () => invalidateStaffWhatsappRecipients(qc),
+  });
+}
+
+export function useSendStaffWhatsappRecipientTest() {
+  return useMutation({
+    mutationFn: (id) => sendStaffWhatsappRecipientTest(id),
   });
 }
