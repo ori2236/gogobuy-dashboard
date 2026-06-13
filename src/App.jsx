@@ -60,6 +60,12 @@ function saveNoteMap(map) {
   localStorage.setItem("picker_note_map_v1", JSON.stringify(map));
 }
 
+function normalizePackagingCount(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.min(999, Math.floor(n)));
+}
+
 function DashboardApp({ user, onLogout }) {
   const [toast, setToast] = useState(null);
   const [pickedMap, setPickedMap] = useState(loadPickedMap);
@@ -191,7 +197,15 @@ function DashboardApp({ user, onLogout }) {
   function requestMarkReady(order) {
     if (order.status !== "preparing") return;
     const note = (noteMap[order.id] ?? order.picker_note ?? "").trim();
-    setConfirm({ open: true, order: { ...order, __note: note } });
+    setConfirm({
+      open: true,
+      order: {
+        ...order,
+        __note: note,
+        __packagingBagsCount: normalizePackagingCount(order.packaging_bags_count),
+        __packagingCartonsCount: normalizePackagingCount(order.packaging_cartons_count),
+      },
+    });
   }
 
   async function onMarkShipped(order) {
@@ -261,6 +275,8 @@ function DashboardApp({ user, onLogout }) {
         orderId: order.id,
         status: "ready",
         pickerNote,
+        packagingBagsCount: normalizePackagingCount(order.__packagingBagsCount),
+        packagingCartonsCount: normalizePackagingCount(order.__packagingCartonsCount),
       });
 
       setConfirm({ open: false, order: null });
@@ -453,9 +469,21 @@ function DashboardApp({ user, onLogout }) {
         open={confirm.open}
         order={confirm.order}
         note={confirm.order?.__note || ""}
+        packagingBagsCount={normalizePackagingCount(confirm.order?.__packagingBagsCount)}
+        packagingCartonsCount={normalizePackagingCount(confirm.order?.__packagingCartonsCount)}
         busy={Boolean(busyOrderId)}
         onCancel={() => setConfirm({ open: false, order: null })}
         onConfirm={confirmMarkReady}
+        onChangePackaging={(kind, value) => {
+          setConfirm((prev) => {
+            if (!prev.order) return prev;
+            const key = kind === "cartons" ? "__packagingCartonsCount" : "__packagingBagsCount";
+            return {
+              ...prev,
+              order: { ...prev.order, [key]: normalizePackagingCount(value) },
+            };
+          });
+        }}
         onChangeNote={(txt) => {
           const id = confirm.order?.id;
           if (!id) return;

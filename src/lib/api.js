@@ -135,6 +135,12 @@ function normalizeTimeValue(value) {
   return `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
 }
 
+function normalizePackagingCount(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.min(999, Math.floor(n)));
+}
+
 function normalizeItem(raw) {
   const soldByWeight = toBool(raw.sold_by_weight ?? raw.soldByWeight, false);
   const unit =
@@ -191,6 +197,12 @@ function normalizeOrder(raw) {
         : Number(raw.delivery_fee),
     delivery_notes:
       raw.delivery_notes ?? raw.deliveryNotes ?? null,
+    packaging_bags_count: normalizePackagingCount(
+      raw.packaging_bags_count ?? raw.packagingBagsCount ?? raw.bags_count ?? raw.bagsCount,
+    ),
+    packaging_cartons_count: normalizePackagingCount(
+      raw.packaging_cartons_count ?? raw.packagingCartonsCount ?? raw.cartons_count ?? raw.cartonsCount,
+    ),
     price:
       raw.price === null || raw.price === undefined ? null : Number(raw.price),
     payment_method:
@@ -213,9 +225,22 @@ export async function getPickerOrders(statuses) {
   return Array.isArray(rawOrders) ? rawOrders.map(normalizeOrder) : [];
 }
 
-export async function setOrderStatus(orderId, status, pickerNote) {
+export async function setOrderStatus(orderId, status, pickerNote, packaging) {
   const body = { status };
   if (pickerNote !== undefined) body.picker_note = pickerNote;
+
+  if (packaging && typeof packaging === "object") {
+    if (packaging.packaging_bags_count !== undefined || packaging.packagingBagsCount !== undefined) {
+      body.packaging_bags_count = normalizePackagingCount(
+        packaging.packaging_bags_count ?? packaging.packagingBagsCount,
+      );
+    }
+    if (packaging.packaging_cartons_count !== undefined || packaging.packagingCartonsCount !== undefined) {
+      body.packaging_cartons_count = normalizePackagingCount(
+        packaging.packaging_cartons_count ?? packaging.packagingCartonsCount,
+      );
+    }
+  }
 
   return await fetchJSON(`/api/dashboard/picker/orders/${orderId}/status`, {
     method: "PATCH",

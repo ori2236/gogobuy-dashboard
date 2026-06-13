@@ -40,6 +40,25 @@ function formatMoney(value) {
   return Number.isFinite(n) ? `₪${n.toFixed(2)}` : "₪0.00";
 }
 
+function normalizePackagingCount(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.floor(n));
+}
+
+function formatPackagePart(count, singular, plural) {
+  const n = normalizePackagingCount(count);
+  if (!n) return "";
+  return `${n} ${n === 1 ? singular : plural}`;
+}
+
+function formatPackagingText(order) {
+  const cartons = formatPackagePart(order?.packaging_cartons_count, "קרטון", "קרטונים");
+  const bags = formatPackagePart(order?.packaging_bags_count, "שקית", "שקיות");
+  const parts = [cartons, bags].filter(Boolean);
+  return parts.length ? parts.join(" ו־") : "";
+}
+
 function formatLocalPhone(phone) {
   const digits = String(phone || "").replace(/\D/g, "");
   if (digits.startsWith("972") && digits.length >= 11) return `0${digits.slice(3)}`;
@@ -377,20 +396,31 @@ function drawOrderDetails(ctx, order, startY) {
   drawField(ctx, MARGIN, y, boxW, "אופן קבלה", fulfillmentLabel);
   y += 76;
 
-  roundedRect(ctx, MARGIN, y, tableW, 64, 16, "#f8fafc", "#e2e8f0");
-  drawRtl(ctx, "תשלום", PAGE_WIDTH - MARGIN - 16, y + 10, tableW - 32, {
-    size: 13,
-    weight: 900,
-    color: "#334155",
-  });
-  const paymentDetails = `מחיר כולל לתשלום: ${formatMoney(order.price)}`;
-  drawRtl(ctx, paymentDetails, PAGE_WIDTH - MARGIN - 16, y + 35, tableW - 32, {
+  const packagingText = formatPackagingText(order);
+  const bubbleGap = 10;
+  const bubbleH = 52;
+  const hasPackagingBubble = Boolean(packagingText);
+  const paymentBubbleW = hasPackagingBubble ? (tableW - bubbleGap) / 2 : tableW;
+  const packagingBubbleW = hasPackagingBubble ? (tableW - bubbleGap) / 2 : 0;
+
+  roundedRect(ctx, PAGE_WIDTH - MARGIN - paymentBubbleW, y, paymentBubbleW, bubbleH, 16, "#f8fafc", "#e2e8f0");
+  drawRtl(ctx, `תשלום: ${formatMoney(order.price)}`, PAGE_WIDTH - MARGIN - 16, y + 16, paymentBubbleW - 32, {
     size: 15,
     weight: 800,
     color: "#0f172a",
     maxLines: 1,
   });
-  y += 78;
+
+  if (hasPackagingBubble) {
+    roundedRect(ctx, MARGIN, y, packagingBubbleW, bubbleH, 16, "#f5f3ff", "#ddd6fe");
+    drawRtl(ctx, `אריזה: ${packagingText}`, MARGIN + packagingBubbleW - 16, y + 16, packagingBubbleW - 32, {
+      size: 15,
+      weight: 800,
+      color: "#0f172a",
+      maxLines: 1,
+    });
+  }
+  y += 66;
 
   if (isDelivery) {
     roundedRect(ctx, MARGIN, y, tableW, 72, 16, "#f8fafc", "#e2e8f0");

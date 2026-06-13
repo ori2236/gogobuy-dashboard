@@ -1,14 +1,68 @@
 import { AlertTriangle, RefreshCw } from "lucide-react";
 import { cn, formatDateTime } from "../lib/utils";
 
+function normalizePackagingCount(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.min(999, Math.floor(n)));
+}
+
+function PackagingCounter({ label, emoji, value, onChange, disabled }) {
+  const safeValue = normalizePackagingCount(value);
+
+  return (
+    <div className="flex items-center gap-1.5 rounded-2xl border border-slate-300 bg-slate-200 px-2 py-1.5 shadow-sm">
+      <span className="text-xs font-bold text-slate-800">{label}</span>
+      <span className="text-sm leading-none">{emoji}</span>
+
+      <div className="me-0.5 flex items-center gap-1" dir="ltr">
+        <button
+          type="button"
+          className="flex h-7 w-7 items-center justify-center rounded-xl border border-slate-300 bg-white text-sm font-black text-slate-700 transition hover:bg-slate-50 disabled:opacity-40"
+          onClick={() => onChange?.(Math.max(0, safeValue - 1))}
+          disabled={disabled || safeValue <= 0}
+          aria-label={`הפחת ${label}`}
+        >
+          −
+        </button>
+
+        <input
+          type="number"
+          min="0"
+          max="999"
+          step="1"
+          inputMode="numeric"
+          className="packaging-number-input h-7 w-11 rounded-xl border border-slate-300 bg-white text-center text-sm font-extrabold text-slate-900 outline-none focus:border-slate-900"
+          value={safeValue}
+          onChange={(e) => onChange?.(normalizePackagingCount(e.target.value))}
+          disabled={disabled}
+        />
+
+        <button
+          type="button"
+          className="flex h-7 w-7 items-center justify-center rounded-xl border border-slate-300 bg-white text-sm font-black text-slate-700 transition hover:bg-slate-50 disabled:opacity-40"
+          onClick={() => onChange?.(Math.min(999, safeValue + 1))}
+          disabled={disabled || safeValue >= 999}
+          aria-label={`הוסף ${label}`}
+        >
+          +
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function ConfirmReadyModal({
   open,
   order,
   note,
+  packagingBagsCount = 0,
+  packagingCartonsCount = 0,
   busy,
   onCancel,
   onConfirm,
   onChangeNote,
+  onChangePackaging,
 }) {
   if (!open || !order) return null;
 
@@ -124,10 +178,7 @@ export function ConfirmReadyModal({
               </div>
             </div>
 
-            <div
-              className="mt-4 rounded-2xl text-right"
-              dir="rtl"
-            >
+            <div className="mt-4 rounded-2xl text-right" dir="rtl">
               <div className="text-xs font-bold text-slate-700">
                 הערת מלקט ללקוח (אופציונלי)
               </div>
@@ -143,15 +194,34 @@ export function ConfirmReadyModal({
             </div>
           </div>
 
-          <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-            <button className="btn-outline" onClick={onCancel} disabled={busy}>
-              ביטול
-            </button>
+          <div className="mt-6 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+            <div className="flex flex-wrap items-center gap-2" dir="rtl">
+              <PackagingCounter
+                label="שקיות"
+                emoji="🛍️"
+                value={packagingBagsCount}
+                disabled={busy}
+                onChange={(value) => onChangePackaging?.("bags", value)}
+              />
+              <PackagingCounter
+                label="קרטונים"
+                emoji="📦"
+                value={packagingCartonsCount}
+                disabled={busy}
+                onChange={(value) => onChangePackaging?.("cartons", value)}
+              />
+            </div>
 
-            <button className="btn-success" onClick={onConfirm} disabled={busy}>
-              {busy ? <RefreshCw className="h-4 w-4 animate-spin" /> : null}
-              כן, לסמן כמוכנה
-            </button>
+            <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button className="btn-outline" onClick={onCancel} disabled={busy}>
+                ביטול
+              </button>
+
+              <button className="btn-success" onClick={onConfirm} disabled={busy}>
+                {busy ? <RefreshCw className="h-4 w-4 animate-spin" /> : null}
+                כן, לסמן כמוכנה
+              </button>
+            </div>
           </div>
         </div>
       </div>

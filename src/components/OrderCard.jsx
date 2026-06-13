@@ -11,7 +11,6 @@ import {
 import { cn, formatDateTime } from "../lib/utils";
 import { canMarkReady, pickedCount, progressPct } from "../lib/hooks";
 import { downloadOrderPdf } from "../lib/orderPdf";
-import { StatusBadge } from "./StatusBadge";
 import { OrderItemRow } from "./OrderItemRow";
 
 function formatLocalPhone(phone) {
@@ -26,9 +25,30 @@ function formatMoney(value) {
   return Number.isFinite(n) ? `₪${n.toFixed(2)}` : "";
 }
 
-function OrderPill({ children, className = "" }) {
+function normalizePackagingCount(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.floor(n));
+}
+
+function formatPackagePart(count, singular, plural) {
+  const n = normalizePackagingCount(count);
+  if (!n) return "";
+  return `${n} ${n === 1 ? singular : plural}`;
+}
+
+function getPackagingPills(order) {
+  const cartonsCount = normalizePackagingCount(order.packaging_cartons_count);
+  const bagsCount = normalizePackagingCount(order.packaging_bags_count);
+  return [
+    cartonsCount ? { key: "cartons", count: cartonsCount, label: cartonsCount === 1 ? "קרטון" : "קרטונים", emoji: "📦" } : null,
+    bagsCount ? { key: "bags", count: bagsCount, label: bagsCount === 1 ? "שקית" : "שקיות", emoji: "🛍️" } : null,
+  ].filter(Boolean);
+}
+
+function OrderPill({ children, className = "", ...props }) {
   return (
-    <span className={cn("pill border border-slate-100 bg-slate-50 text-slate-700 shadow-sm", className)}>
+    <span className={cn("pill border border-slate-100 bg-slate-50 text-slate-700 shadow-sm", className)} {...props}>
       {children}
     </span>
   );
@@ -37,6 +57,9 @@ function OrderPill({ children, className = "" }) {
 function OrderMetaPills({ order, isDelivery }) {
   const price = formatMoney(order.price);
   const deliveryFee = Number(order.delivery_fee || 0);
+  const packagingPills = getPackagingPills(order);
+  const showPackaging =
+    packagingPills.length > 0 && !["confirmed", "preparing"].includes(order.status);
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -53,6 +76,15 @@ function OrderMetaPills({ order, isDelivery }) {
           🚚 דמי משלוח {formatMoney(deliveryFee)}
         </OrderPill>
       ) : null}
+      {showPackaging
+        ? packagingPills.map((pill) => (
+            <OrderPill key={pill.key} className="bg-violet-50 text-slate-900 border-violet-100" dir="rtl">
+              <span className="tabular-nums font-bold">{pill.count}</span>
+              <span>{pill.label}</span>
+              <span>{pill.emoji}</span>
+            </OrderPill>
+          ))
+        : null}
     </div>
   );
 }
@@ -214,7 +246,6 @@ export function OrderCard({
             <ShoppingBasket className="h-5 w-5 text-slate-700" />
             <div className="text-base font-bold">הזמנה #{order.id}</div>
           </div>
-          <StatusBadge status={order.status} fulfillmentMethod={order.fulfillment_method} />
           <OrderMetaPills order={order} isDelivery={isDelivery} />
 
           <div className="ms-auto flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-600">
@@ -242,7 +273,6 @@ export function OrderCard({
             <div className="text-base font-bold">הזמנה #{order.id}</div>
           </div>
 
-          <StatusBadge status={order.status} fulfillmentMethod={order.fulfillment_method} />
           <OrderMetaPills order={order} isDelivery={isDelivery} />
 
           <div className="ms-auto flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-600">

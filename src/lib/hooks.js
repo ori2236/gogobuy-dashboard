@@ -43,8 +43,11 @@ export function useOrders(statuses) {
 export function useSetOrderStatus() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ orderId, status, pickerNote }) =>
-      setOrderStatus(orderId, status, pickerNote),
+    mutationFn: ({ orderId, status, pickerNote, packagingBagsCount, packagingCartonsCount }) =>
+      setOrderStatus(orderId, status, pickerNote, {
+        packaging_bags_count: packagingBagsCount,
+        packaging_cartons_count: packagingCartonsCount,
+      }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["pickerOrders"] }),
   });
 }
