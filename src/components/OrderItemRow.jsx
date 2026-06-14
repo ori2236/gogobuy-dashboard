@@ -55,7 +55,7 @@ export function OrderItemRow({
   const qty = fmtAmount(item.amount);
   const unit = item.unit || item.unit_label || "";
   const itemNote = item.picker_note ?? item.notes ?? "";
-  const isGift = Boolean(item.is_gift);
+  const isGift = Boolean(item.is_gift) || Boolean(item.cart_promotion_rule_id && Number(item.line_price || 0) === 0);
   const linePrice = Number(item.line_price);
   const displayedSuppliedAmount =
     item.supplied_amount !== null &&
@@ -156,6 +156,7 @@ export function OrderItemRow({
           <div className="flex items-start justify-between gap-3">
             <div className="flex min-w-0 flex-1 items-center gap-3">
               <div className="whitespace-nowrap text-base font-extrabold text-slate-800">
+                {isGift ? <span className="me-1">🎁</span> : null}
                 <span>{qty}</span>
                 {unit ? (
                   <span className="ms-1 text-xs font-bold text-slate-500">
@@ -175,7 +176,7 @@ export function OrderItemRow({
                 {item.name}{" "}
                 {isGift ? (
                   <span className="me-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-extrabold text-emerald-800">
-                    מתנה 🎁
+                    צריך ללקט · מתנה 🎁
                   </span>
                 ) : null}
                 {ruTxt ? (

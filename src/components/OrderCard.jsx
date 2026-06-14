@@ -115,11 +115,21 @@ function DeliveryDetailsBox({ order, compact = false }) {
 }
 
 
-function CartPromotionsCard({ lines }) {
+function isGiftOrderItem(item) {
+  return Boolean(item?.is_gift) || Boolean(item?.cart_promotion_rule_id && Number(item?.line_price || 0) === 0);
+}
+
+function CartPromotionsCard({ lines, items }) {
   const cleanLines = Array.isArray(lines)
     ? lines.map((line) => String(line || "").trim()).filter(Boolean)
     : [];
-  if (!cleanLines.length) return null;
+  const giftLines = Array.isArray(items)
+    ? items
+        .filter(isGiftOrderItem)
+        .map((item) => `🎁 צריך ללקט מתנה: ${item.name || "מוצר מתנה"}`)
+    : [];
+  const allLines = Array.from(new Set([...cleanLines, ...giftLines]));
+  if (!allLines.length) return null;
 
   return (
     <div className="mt-4 rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-right shadow-sm" dir="rtl">
@@ -130,7 +140,7 @@ function CartPromotionsCard({ lines }) {
         </span>
       </div>
       <div className="mt-2 grid gap-1 text-sm font-semibold leading-6 text-emerald-950">
-        {cleanLines.map((line, idx) => (
+        {allLines.map((line, idx) => (
           <div key={`${line}-${idx}`}>• {line}</div>
         ))}
       </div>
@@ -340,7 +350,7 @@ export function OrderCard({
         ) : null}
 
         <CustomerNoteCard note={customerNoteToPicker} className="mt-4" />
-        <CartPromotionsCard lines={order.cart_promotion_lines} />
+        <CartPromotionsCard lines={order.cart_promotion_lines} items={order.items} />
 
         {isPreparing ? (
           <div className="mt-4 text-right text-[11px] font-semibold text-slate-500">

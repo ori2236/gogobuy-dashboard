@@ -317,16 +317,30 @@ function drawField(ctx, x, y, w, label, value, { ltr = false } = {}) {
   }
 }
 
+function isGiftOrderItem(item) {
+  return Boolean(item?.is_gift) || Boolean(item?.cart_promotion_rule_id && Number(item?.line_price || 0) === 0);
+}
+
 function cartPromotionLines(order) {
-  if (Array.isArray(order.cart_promotion_lines)) {
-    return order.cart_promotion_lines.map((line) => String(line || "").trim()).filter(Boolean);
-  }
+  const lines = Array.isArray(order.cart_promotion_lines)
+    ? order.cart_promotion_lines.map((line) => String(line || "").trim()).filter(Boolean)
+    : [];
+
   const apps = Array.isArray(order.cart_promotion_applications)
     ? order.cart_promotion_applications
     : [];
-  return apps
-    .map((app) => String(app.text_he || app.title || "").trim())
-    .filter(Boolean);
+  for (const app of apps) {
+    const text = String(app.text_he || app.title || "").trim();
+    if (text) lines.push(text);
+  }
+
+  const giftLines = Array.isArray(order.items)
+    ? order.items
+        .filter(isGiftOrderItem)
+        .map((item) => `🎁 צריך ללקט מתנה: ${item.name || "מוצר מתנה"}`)
+    : [];
+
+  return Array.from(new Set([...lines, ...giftLines]));
 }
 
 function drawCartPromotionBox(ctx, order, y) {
@@ -559,10 +573,11 @@ function drawTable(ctx, rows, startIndex, y) {
     const requested = item ? qtyWithUnit(item.amount, unit) : "";
     const requestedUnits = item?.requested_units != null ? formatQty(item.requested_units) : "";
     const supplied = item?.supplied_amount != null ? qtyWithUnit(item.supplied_amount, unit) : "";
+    const isGift = item ? isGiftOrderItem(item) : false;
     const note = item
-      ? [item.picker_note || "", item.is_gift ? "מתנה ממבצע סל" : ""].filter(Boolean).join(" | ")
+      ? [item.picker_note || "", isGift ? "מתנה ממבצע סל - צריך ללקט" : ""].filter(Boolean).join(" | ")
       : "";
-    const itemName = item?.is_gift ? `${item?.name || ""} 🎁 מתנה` : item?.name || "";
+    const itemName = isGift ? `${item?.name || ""} 🎁 מתנה` : item?.name || "";
 
     const values = {
       num: String(startIndex + idx + 1),

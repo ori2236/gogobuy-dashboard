@@ -394,7 +394,7 @@ export function PromotionsPage({
             </div>
           </div>
 
-          <div className="flex items-center justify-end gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
             <button
               className="btn-success"
               onClick={() =>
@@ -403,7 +403,18 @@ export function PromotionsPage({
               disabled={busy}
             >
               <Plus className="h-4 w-4" />
-              הוסף מבצע
+              הוסף מבצע מוצר
+            </button>
+            <button
+              className="btn-secondary bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
+              onClick={() =>
+                setCartModal({ open: true, mode: "create", rule: null })
+              }
+              disabled={busy}
+              title="מבצע לפי סכום סל: משלוח מוזל/חינם, מתנה, או מחיר מיוחד למוצר"
+            >
+              <Gift className="h-4 w-4" />
+              הוסף מבצע סל
             </button>
           </div>
         </div>
