@@ -18,6 +18,10 @@ import {
   createPromotion,
   updatePromotion,
   deletePromotion,
+  getCartPromotionRules,
+  createCartPromotionRule,
+  updateCartPromotionRule,
+  deleteCartPromotionRule,
   getBusinessSettings,
   updateBusinessSettings,
   getStaffWhatsappRecipients,
@@ -216,6 +220,52 @@ export function useDeletePromotion() {
   });
 }
 
+
+export function useCartPromotionRules({ status, q } = {}) {
+  return useQuery({
+    queryKey: [
+      "cartPromotionRules",
+      getShopId(),
+      {
+        status: status ?? "all",
+        q: q ?? "",
+      },
+    ],
+    queryFn: () => getCartPromotionRules({ status, q }),
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    staleTime: 30_000,
+  });
+}
+
+function invalidateAfterCartPromotionRuleChange(qc) {
+  qc.invalidateQueries({ queryKey: ["cartPromotionRules"] });
+  qc.invalidateQueries({ queryKey: ["pickerOrders"] });
+}
+
+export function useCreateCartPromotionRule() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload) => createCartPromotionRule(payload),
+    onSuccess: () => invalidateAfterCartPromotionRuleChange(qc),
+  });
+}
+
+export function useUpdateCartPromotionRule() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }) => updateCartPromotionRule(id, payload),
+    onSuccess: () => invalidateAfterCartPromotionRuleChange(qc),
+  });
+}
+
+export function useDeleteCartPromotionRule() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id) => deleteCartPromotionRule(id),
+    onSuccess: () => invalidateAfterCartPromotionRuleChange(qc),
+  });
+}
 
 export function useBusinessSettings() {
   return useQuery({

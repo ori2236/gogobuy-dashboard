@@ -56,7 +56,7 @@ function formatPackagingText(order) {
   const cartons = formatPackagePart(order?.packaging_cartons_count, "קרטון", "קרטונים");
   const bags = formatPackagePart(order?.packaging_bags_count, "שקית", "שקיות");
   const parts = [cartons, bags].filter(Boolean);
-  return parts.length ? parts.join(" ו־") : "";
+  return parts.length ? parts.join(" ו-") : "";
 }
 
 function formatLocalPhone(phone) {
@@ -317,6 +317,40 @@ function drawField(ctx, x, y, w, label, value, { ltr = false } = {}) {
   }
 }
 
+function cartPromotionLines(order) {
+  if (Array.isArray(order.cart_promotion_lines)) {
+    return order.cart_promotion_lines.map((line) => String(line || "").trim()).filter(Boolean);
+  }
+  const apps = Array.isArray(order.cart_promotion_applications)
+    ? order.cart_promotion_applications
+    : [];
+  return apps
+    .map((app) => String(app.text_he || app.title || "").trim())
+    .filter(Boolean);
+}
+
+function drawCartPromotionBox(ctx, order, y) {
+  const lines = cartPromotionLines(order).slice(0, 4);
+  if (!lines.length) return y;
+  const tableW = PAGE_WIDTH - MARGIN * 2;
+  const boxH = 48 + lines.length * 20;
+  roundedRect(ctx, MARGIN, y, tableW, boxH, 16, "#ecfdf5", "#bbf7d0");
+  drawRtl(ctx, "מבצעי סל שחלים על ההזמנה", PAGE_WIDTH - MARGIN - 16, y + 10, tableW - 32, {
+    size: 13,
+    weight: 900,
+    color: "#065f46",
+  });
+  lines.forEach((line, idx) => {
+    drawRtl(ctx, `• ${line}`, PAGE_WIDTH - MARGIN - 16, y + 34 + idx * 20, tableW - 32, {
+      size: 13,
+      weight: 750,
+      color: "#064e3b",
+      maxLines: 1,
+    });
+  });
+  return y + boxH + 14;
+}
+
 function drawHeader(ctx, order, shopInfo, pageNumber, totalPages, logoImage) {
   const shopName = shopTitle(shopInfo);
   const y = 36;
@@ -444,6 +478,8 @@ function drawOrderDetails(ctx, order, startY) {
     y += 86;
   }
 
+  y = drawCartPromotionBox(ctx, order, y);
+
   const customerNote = String(order.customer_note_to_picker || "").trim();
   if (customerNote) {
     roundedRect(ctx, MARGIN, y, tableW, 74, 16, "#fffdf6", "#fde68a");
@@ -523,11 +559,14 @@ function drawTable(ctx, rows, startIndex, y) {
     const requested = item ? qtyWithUnit(item.amount, unit) : "";
     const requestedUnits = item?.requested_units != null ? formatQty(item.requested_units) : "";
     const supplied = item?.supplied_amount != null ? qtyWithUnit(item.supplied_amount, unit) : "";
-    const note = item ? (item.picker_note || "") : "";
+    const note = item
+      ? [item.picker_note || "", item.is_gift ? "מתנה ממבצע סל" : ""].filter(Boolean).join(" | ")
+      : "";
+    const itemName = item?.is_gift ? `${item?.name || ""} 🎁 מתנה` : item?.name || "";
 
     const values = {
       num: String(startIndex + idx + 1),
-      name: item?.name || "",
+      name: itemName,
       requested: requestedUnits ? `${requested} (${requestedUnits} יח')` : requested,
       supplied,
       note,

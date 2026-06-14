@@ -55,6 +55,8 @@ export function OrderItemRow({
   const qty = fmtAmount(item.amount);
   const unit = item.unit || item.unit_label || "";
   const itemNote = item.picker_note ?? item.notes ?? "";
+  const isGift = Boolean(item.is_gift);
+  const linePrice = Number(item.line_price);
   const displayedSuppliedAmount =
     item.supplied_amount !== null &&
     item.supplied_amount !== undefined &&
@@ -131,8 +133,11 @@ export function OrderItemRow({
   return (
     <div
       className={cn(
-        "rounded-2xl border border-slate-100 bg-slate-50/60 px-3 py-3 font-sans transition select-none",
-        disabled ? "opacity-70" : "hover:bg-slate-50",
+        "rounded-2xl border px-3 py-3 font-sans transition select-none",
+        isGift
+          ? "border-emerald-100 bg-emerald-50/70"
+          : "border-slate-100 bg-slate-50/60",
+        disabled ? "opacity-70" : isGift ? "hover:bg-emerald-50" : "hover:bg-slate-50",
       )}
       dir="rtl"
     >
@@ -168,6 +173,11 @@ export function OrderItemRow({
                 )}
               >
                 {item.name}{" "}
+                {isGift ? (
+                  <span className="me-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-extrabold text-emerald-800">
+                    מתנה 🎁
+                  </span>
+                ) : null}
                 {ruTxt ? (
                   <span className="text-xs font-semibold text-slate-500">
                     ({ruTxt} יחידות)
@@ -267,6 +277,16 @@ export function OrderItemRow({
               <div className="mt-2 text-[11px] font-semibold text-slate-500">
                 הפרטים נשמרים לדו״ח PDF ולא נשלחים ללקוח. אחרי שינוי לחץ שמור.
               </div>
+            </div>
+          ) : null}
+
+          {isGift ? (
+            <div className="mt-2 rounded-xl border border-emerald-100 bg-white/70 px-3 py-2 text-right text-xs font-bold text-emerald-900">
+              מוצר מתנה ממבצע סל - צריך להילקט כמו כל מוצר אחר.
+            </div>
+          ) : Number.isFinite(linePrice) ? (
+            <div className="mt-2 text-right text-[11px] font-semibold text-slate-500">
+              מחיר שורה אחרי מבצעים: ₪{linePrice.toFixed(2)}
             </div>
           ) : null}
 

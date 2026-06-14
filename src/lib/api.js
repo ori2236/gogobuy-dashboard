@@ -163,6 +163,10 @@ function normalizeItem(raw) {
       raw.picked ?? raw.is_picked ?? raw.isPicked ?? raw.picked_up,
       false,
     ),
+    line_price: toNumberOrNull(raw.line_price ?? raw.linePrice ?? raw.price),
+    is_gift: toBool(raw.is_gift ?? raw.isGift, false),
+    cart_promotion_rule_id:
+      toNumberOrNull(raw.cart_promotion_rule_id ?? raw.cartPromotionRuleId),
     notes: raw.notes ?? raw.comment ?? null,
   };
 }
@@ -207,6 +211,16 @@ function normalizeOrder(raw) {
       raw.price === null || raw.price === undefined ? null : Number(raw.price),
     payment_method:
       raw.payment_method ?? raw.paymentMethod ?? raw.payment ?? null,
+    cart_promotion_applications: Array.isArray(
+      raw.cart_promotion_applications ?? raw.cartPromotionApplications,
+    )
+      ? (raw.cart_promotion_applications ?? raw.cartPromotionApplications)
+      : [],
+    cart_promotion_lines: Array.isArray(
+      raw.cart_promotion_lines ?? raw.cartPromotionLines,
+    )
+      ? (raw.cart_promotion_lines ?? raw.cartPromotionLines).map(String).filter(Boolean)
+      : [],
     items: Array.isArray(itemsRaw) ? itemsRaw.map(normalizeItem) : [],
   };
 }
@@ -354,6 +368,9 @@ function normalizePromotion(raw) {
     bundle_pay_price: toNumberOrNull(
       raw.bundle_pay_price ?? raw.bundlePayPrice,
     ),
+    max_discounted_qty: toNumberOrNull(
+      raw.max_discounted_qty ?? raw.maxDiscountedQty,
+    ),
     description: raw.description ?? null,
     start_at: raw.start_at ?? raw.startAt ?? null,
     end_at: raw.end_at ?? raw.endAt ?? null,
@@ -416,6 +433,89 @@ export async function deletePromotion(id) {
   });
 }
 
+
+function normalizeCartPromotionRule(raw) {
+  return {
+    id: Number(raw.id),
+    shop_id: Number(raw.shop_id ?? raw.shopId ?? getShopId()),
+    rule_type: String(raw.rule_type ?? raw.ruleType ?? ""),
+    title: raw.title ?? "",
+    description: raw.description ?? null,
+    threshold_amount: toNumberOrNull(raw.threshold_amount ?? raw.thresholdAmount) ?? 0,
+    delivery_fee_override: toNumberOrNull(
+      raw.delivery_fee_override ?? raw.deliveryFeeOverride,
+    ),
+    reward_product_id: toNumberOrNull(raw.reward_product_id ?? raw.rewardProductId),
+    reward_product_name: raw.reward_product_name ?? raw.rewardProductName ?? null,
+    reward_display_name_en:
+      raw.reward_display_name_en ?? raw.rewardDisplayNameEn ?? null,
+    reward_product_price: toNumberOrNull(
+      raw.reward_product_price ?? raw.rewardProductPrice,
+    ),
+    reward_qty: toNumberOrNull(raw.reward_qty ?? raw.rewardQty),
+    reward_fixed_price: toNumberOrNull(
+      raw.reward_fixed_price ?? raw.rewardFixedPrice,
+    ),
+    reward_max_qty: toNumberOrNull(raw.reward_max_qty ?? raw.rewardMaxQty),
+    threshold_base_mode:
+      raw.threshold_base_mode ?? raw.thresholdBaseMode ?? "ITEMS_SUBTOTAL",
+    priority: toNumberOrNull(raw.priority) ?? 100,
+    is_active: toBool(raw.is_active ?? raw.isActive, true),
+    notify_customer: toBool(raw.notify_customer ?? raw.notifyCustomer, true),
+    start_at: raw.start_at ?? raw.startAt ?? null,
+    end_at: raw.end_at ?? raw.endAt ?? null,
+    source: raw.source ?? null,
+    external_reward_id: raw.external_reward_id ?? raw.externalRewardId ?? null,
+    created_at: raw.created_at ?? raw.createdAt ?? null,
+    updated_at: raw.updated_at ?? raw.updatedAt ?? null,
+    is_currently_active: toBool(
+      raw.is_currently_active ?? raw.isCurrentlyActive,
+      false,
+    ),
+    is_upcoming: toBool(raw.is_upcoming ?? raw.isUpcoming, false),
+    is_expired: toBool(raw.is_expired ?? raw.isExpired, false),
+    status: raw.status ?? "inactive",
+  };
+}
+
+export async function getCartPromotionRules({ status = "all", q = "" } = {}) {
+  const params = new URLSearchParams();
+  params.set("status", String(status || "all"));
+  params.set("limit", "500");
+  if (q) params.set("q", String(q));
+
+  const res = await fetchJSON(`/api/dashboard/promotions/cart-rules?${params.toString()}`);
+  const list = res.cart_promotion_rules ?? res.data ?? res.items ?? [];
+
+  return {
+    cart_promotion_rules: Array.isArray(list) ? list.map(normalizeCartPromotionRule) : [],
+    counts: {
+      total: Number(res.counts?.total ?? list.length ?? 0),
+      active: Number(res.counts?.active ?? 0),
+      inactive: Number(res.counts?.inactive ?? 0),
+    },
+  };
+}
+
+export async function createCartPromotionRule(payload) {
+  return await fetchJSON(`/api/dashboard/promotions/cart-rules`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateCartPromotionRule(id, payload) {
+  return await fetchJSON(`/api/dashboard/promotions/cart-rules/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteCartPromotionRule(id) {
+  return await fetchJSON(`/api/dashboard/promotions/cart-rules/${id}`, {
+    method: "DELETE",
+  });
+}
 
 
 function normalizeStaffWhatsappRecipient(raw) {

@@ -4,20 +4,28 @@ import {
   BadgePercent,
   CalendarClock,
   Clock3,
+  Gift,
   Plus,
   Search,
+  ShoppingCart,
   Sparkles,
+  Truck,
 } from "lucide-react";
 import {
+  useCartPromotionRules,
+  useCreateCartPromotionRule,
   useCreatePromotion,
+  useDeleteCartPromotionRule,
   useDeletePromotion,
   usePromotions,
   useStockCategories,
+  useUpdateCartPromotionRule,
   useUpdatePromotion,
 } from "../lib/hooks";
 import { cn, formatDateTime } from "../lib/utils";
 import { ConfirmDeleteModal } from "./ConfirmDeleteModal";
 import { PromotionModal } from "./PromotionModal";
+import { CartPromotionModal } from "./CartPromotionModal";
 
 const FILTERS = [
   { value: "all", label: "כל המבצעים" },
@@ -30,6 +38,12 @@ const KIND_LABELS = {
   AMOUNT_OFF: "הנחה בשקלים",
   FIXED_PRICE: "מחיר קבוע",
   BUNDLE: "כמות במחיר",
+};
+
+const CART_RULE_LABELS = {
+  DELIVERY_FEE_OVERRIDE: "משלוח לפי סכום סל",
+  GIFT_PRODUCT: "מתנה לפי סכום סל",
+  THRESHOLD_PRODUCT_FIXED_PRICE: "מחיר מוצר לפי סכום סל",
 };
 
 const SORT_OPTIONS = [
@@ -93,17 +107,46 @@ function fmtShortNumber(v) {
 
 function promoValueText(promo) {
   if (!promo) return "—";
-  if (promo.kind === "PERCENT_OFF") return `${fmtShortNumber(promo.percent_off)}% הנחה`;
-  if (promo.kind === "AMOUNT_OFF") return `${fmtMoney(promo.amount_off)} הנחה`;
-  if (promo.kind === "FIXED_PRICE") return `מחיר ${fmtMoney(promo.fixed_price)}`;
+  const max = promo.max_discounted_qty
+    ? `, עד ${fmtShortNumber(promo.max_discounted_qty)} יח׳`
+    : "";
+  if (promo.kind === "PERCENT_OFF") return `${fmtShortNumber(promo.percent_off)}% הנחה${max}`;
+  if (promo.kind === "AMOUNT_OFF") return `${fmtMoney(promo.amount_off)} הנחה${max}`;
+  if (promo.kind === "FIXED_PRICE") return `מחיר ${fmtMoney(promo.fixed_price)}${max}`;
   if (promo.kind === "BUNDLE") {
-    return `${fmtShortNumber(promo.bundle_buy_qty)} יח׳ ב-${fmtMoney(promo.bundle_pay_price)}`;
+    return `${fmtShortNumber(promo.bundle_buy_qty)} יח׳ ב-${fmtMoney(promo.bundle_pay_price)}${max}`;
   }
   return "—";
 }
 
+
+function cartRuleValueText(rule) {
+  if (!rule) return "—";
+  const threshold = fmtMoney(rule.threshold_amount);
+  if (rule.rule_type === "DELIVERY_FEE_OVERRIDE") {
+    const fee = Number(rule.delivery_fee_override || 0);
+    return fee <= 0 ? `${threshold} ומעלה → משלוח חינם` : `${threshold} ומעלה → משלוח ${fmtMoney(fee)}`;
+  }
+  if (rule.rule_type === "GIFT_PRODUCT") {
+    return `${threshold} ומעלה → ${rule.reward_product_name || "מוצר"} מתנה`;
+  }
+  if (rule.rule_type === "THRESHOLD_PRODUCT_FIXED_PRICE") {
+    const max = rule.reward_max_qty ? `, עד ${fmtShortNumber(rule.reward_max_qty)} יח׳` : "";
+    return `${threshold} ומעלה → ${rule.reward_product_name || "מוצר"} ב-${fmtMoney(rule.reward_fixed_price)}${max}`;
+  }
+  return "—";
+}
+
+function cartRuleIcon(ruleType) {
+  if (ruleType === "DELIVERY_FEE_OVERRIDE") return <Truck className="h-4 w-4 text-blue-700" />;
+  if (ruleType === "GIFT_PRODUCT") return <Gift className="h-4 w-4 text-emerald-700" />;
+  return <ShoppingCart className="h-4 w-4 text-amber-700" />;
+}
+
 function statusInfo(promo) {
-  if (promo?.is_active || promo?.status === "active") {
+  const hasCurrentFlag = Object.prototype.hasOwnProperty.call(promo || {}, "is_currently_active");
+  const currentlyActive = hasCurrentFlag ? Boolean(promo?.is_currently_active) : Boolean(promo?.is_active);
+  if (currentlyActive || promo?.status === "active") {
     return {
       label: "פעיל",
       className: "bg-emerald-50 text-emerald-700",
@@ -177,6 +220,12 @@ export function PromotionsPage({
     promotion: null,
   });
   const [confirmDel, setConfirmDel] = useState({ open: false, promotion: null });
+  const [cartModal, setCartModal] = useState({
+    open: false,
+    mode: "create",
+    rule: null,
+  });
+  const [confirmCartDel, setConfirmCartDel] = useState({ open: false, rule: null });
 
   const qDebounced = useDebouncedValue(q, 300);
   const { sort_by, sort_dir } = useMemo(
@@ -220,24 +269,47 @@ export function PromotionsPage({
     sort_by,
     sort_dir,
   });
+  const cartRulesQuery = useCartPromotionRules({
+    status,
+    q: String(qDebounced || "").trim(),
+  });
 
   const createMut = useCreatePromotion();
   const updateMut = useUpdatePromotion();
   const deleteMut = useDeletePromotion();
+  const createCartMut = useCreateCartPromotionRule();
+  const updateCartMut = useUpdateCartPromotionRule();
+  const deleteCartMut = useDeleteCartPromotionRule();
 
-  const busy = createMut.isPending || updateMut.isPending || deleteMut.isPending;
+  const busy =
+    createMut.isPending ||
+    updateMut.isPending ||
+    deleteMut.isPending ||
+    createCartMut.isPending ||
+    updateCartMut.isPending ||
+    deleteCartMut.isPending;
   const promotions = promosQuery.data?.promotions || [];
+  const cartRules = cartRulesQuery.data?.cart_promotion_rules || [];
   const counts = promosQuery.data?.counts || { total: 0, active: 0, inactive: 0 };
+  const cartCounts = cartRulesQuery.data?.counts || { total: 0, active: 0, inactive: 0 };
+  const combinedCounts = {
+    total: Number(counts.total || 0) + Number(cartCounts.total || 0),
+    active: Number(counts.active || 0) + Number(cartCounts.active || 0),
+    inactive: Number(counts.inactive || 0) + Number(cartCounts.inactive || 0),
+  };
 
-  const refetchFn = useCallback(() => promosQuery.refetch(), [promosQuery]);
+  const refetchFn = useCallback(() => {
+    promosQuery.refetch();
+    cartRulesQuery.refetch();
+  }, [promosQuery, cartRulesQuery]);
   useEffect(() => {
     onRegisterRefetch?.(refetchFn);
     return () => onRegisterRefetch?.(null);
   }, [onRegisterRefetch, refetchFn]);
 
   useEffect(() => {
-    onFetchingChange?.(Boolean(promosQuery.isFetching || catQuery.isFetching));
-  }, [onFetchingChange, promosQuery.isFetching, catQuery.isFetching]);
+    onFetchingChange?.(Boolean(promosQuery.isFetching || cartRulesQuery.isFetching || catQuery.isFetching));
+  }, [onFetchingChange, promosQuery.isFetching, cartRulesQuery.isFetching, catQuery.isFetching]);
 
   const activeFilterLabel = useMemo(() => {
     return FILTERS.find((f) => f.value === status)?.label || "כל המבצעים";
@@ -260,6 +332,23 @@ export function PromotionsPage({
     }
   }
 
+  async function onSaveCartRule(payload) {
+    try {
+      if (cartModal.mode === "create") {
+        await createCartMut.mutateAsync(payload);
+        onNotify?.("success", "מבצע סל נוסף בהצלחה");
+      } else {
+        const id = cartModal.rule?.id;
+        if (!id) return;
+        await updateCartMut.mutateAsync({ id, payload });
+        onNotify?.("success", "מבצע סל עודכן בהצלחה");
+      }
+      setCartModal({ open: false, mode: "create", rule: null });
+    } catch (e) {
+      onNotify?.("error", e?.message || "שגיאה בשמירת מבצע סל");
+    }
+  }
+
   async function onConfirmDelete() {
     const promo = confirmDel.promotion;
     if (!promo) return;
@@ -270,6 +359,19 @@ export function PromotionsPage({
       onNotify?.("success", "המבצע נמחק");
     } catch (e) {
       onNotify?.("error", e?.message || "שגיאה במחיקת מבצע");
+    }
+  }
+
+  async function onConfirmCartDelete() {
+    const rule = confirmCartDel.rule;
+    if (!rule) return;
+
+    try {
+      await deleteCartMut.mutateAsync(rule.id);
+      setConfirmCartDel({ open: false, rule: null });
+      onNotify?.("success", "מבצע הסל נמחק");
+    } catch (e) {
+      onNotify?.("error", e?.message || "שגיאה במחיקת מבצע סל");
     }
   }
 
@@ -287,7 +389,7 @@ export function PromotionsPage({
                 ניהול מבצעים
               </div>
               <div className="mt-1 text-sm text-slate-600">
-                צפייה, סינון, הוספה, עריכה ומחיקה של מבצעי מוצרים. מבצע פעיל נקבע אוטומטית לפי התאריכים.
+                צפייה, סינון, הוספה, עריכה ומחיקה של מבצעי מוצרים ומבצעי סל. מבצע פעיל נקבע אוטומטית לפי תאריכים והגדרת פעיל.
               </div>
             </div>
           </div>
@@ -312,7 +414,7 @@ export function PromotionsPage({
             className="border-emerald-100 bg-emerald-50 text-emerald-900"
             icon={<Sparkles className="h-4 w-4 text-emerald-700" />}
             label="פעילים עכשיו"
-            value={counts.active}
+            value={combinedCounts.active}
             onClick={() => setStatus("active")}
           />
 
@@ -321,7 +423,7 @@ export function PromotionsPage({
             className="border-slate-100 bg-slate-50 text-slate-900"
             icon={<Clock3 className="h-4 w-4 text-slate-500" />}
             label="לא פעילים"
-            value={counts.inactive}
+            value={combinedCounts.inactive}
             onClick={() => setStatus("inactive")}
           />
 
@@ -330,7 +432,7 @@ export function PromotionsPage({
             className="border-amber-100 bg-amber-50 text-amber-900"
             icon={<BadgePercent className="h-4 w-4 text-amber-700" />}
             label="סה״כ מבצעים"
-            value={counts.total}
+            value={combinedCounts.total}
             onClick={() => setStatus("all")}
           />
         </div>
@@ -548,6 +650,96 @@ export function PromotionsPage({
             </table>
           </div>
         </div>
+
+        <div className="mt-6 overflow-hidden rounded-2xl border border-emerald-100 bg-white">
+          <div className="flex flex-col gap-2 border-b border-emerald-100 bg-emerald-50 px-4 py-3 text-right sm:flex-row sm:items-center sm:justify-between" dir="rtl">
+            <div>
+              <div className="text-sm font-extrabold text-emerald-950">מבצעי סל</div>
+              <div className="mt-1 text-xs font-semibold text-emerald-800">
+                מבצעים לפי סכום הזמנה: משלוח, מתנה, או מחיר מיוחד למוצר.
+              </div>
+            </div>
+            <span className="pill bg-white text-emerald-700">{activeFilterLabel}: {cartRules.length}</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-right text-sm">
+              <thead className="bg-white text-xs font-extrabold text-slate-700">
+                <tr>
+                  <th className="px-4 py-3">סוג</th>
+                  <th className="px-4 py-3">שם המבצע</th>
+                  <th className="px-4 py-3">מה קורה בפועל</th>
+                  <th className="px-4 py-3">תוקף</th>
+                  <th className="px-3 py-3">סטטוס</th>
+                  <th className="px-16 py-3">פעולות</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {cartRulesQuery.isLoading ? (
+                  <tr>
+                    <td className="px-4 py-10 text-center text-slate-500" colSpan={6}>טוען מבצעי סל…</td>
+                  </tr>
+                ) : cartRulesQuery.error ? (
+                  <tr>
+                    <td className="px-4 py-10 text-center text-rose-700" colSpan={6}>
+                      שגיאה בטעינת מבצעי סל: {String(cartRulesQuery.error?.message || "")}
+                    </td>
+                  </tr>
+                ) : cartRules.length ? (
+                  cartRules.map((rule) => {
+                    const s = statusInfo(rule);
+                    const dates = dateRangeText(rule);
+                    return (
+                      <tr key={rule.id} className="hover:bg-slate-50">
+                        <td className="px-4 py-3 text-slate-700">
+                          <div className="flex items-center justify-end gap-2">
+                            <span>{CART_RULE_LABELS[rule.rule_type] || rule.rule_type}</span>
+                            {cartRuleIcon(rule.rule_type)}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-slate-900">
+                          <div className="font-bold">{rule.title || `#${rule.id}`}</div>
+                          {rule.description ? (
+                            <div className="mt-1 line-clamp-2 text-xs text-slate-500">{rule.description}</div>
+                          ) : null}
+                        </td>
+                        <td className="px-4 py-3 font-bold text-slate-900">{cartRuleValueText(rule)}</td>
+                        <td className="px-4 py-3 text-slate-700">
+                          <div>מתחיל: {dates.start}</div>
+                          <div className="mt-1 text-xs text-slate-500">מסתיים: {dates.end}</div>
+                        </td>
+                        <td className="px-3 py-3"><span className={cn("pill", s.className)}>{s.label}</span></td>
+                        <td className="px-3 py-3">
+                          <div className="flex items-center justify-end gap-2 whitespace-nowrap">
+                            <button
+                              className="btn-secondary"
+                              disabled={busy}
+                              onClick={() => setCartModal({ open: true, mode: "edit", rule })}
+                            >
+                              עריכה
+                            </button>
+                            <button
+                              className="btn-outline"
+                              disabled={busy}
+                              onClick={() => setConfirmCartDel({ open: true, rule })}
+                            >
+                              מחיקה
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td className="px-4 py-10 text-center text-slate-500" colSpan={6}>
+                      אין מבצעי סל שמתאימים לסינון הנוכחי.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
 
       <PromotionModal
@@ -557,6 +749,15 @@ export function PromotionsPage({
         promotion={modal.promotion}
         onCancel={() => setModal({ open: false, mode: "create", promotion: null })}
         onSave={onSavePromotion}
+      />
+
+      <CartPromotionModal
+        open={cartModal.open}
+        mode={cartModal.mode}
+        busy={busy}
+        rule={cartModal.rule}
+        onCancel={() => setCartModal({ open: false, mode: "create", rule: null })}
+        onSave={onSaveCartRule}
       />
 
       <ConfirmDeleteModal
@@ -571,6 +772,20 @@ export function PromotionsPage({
         hint="לאחר המחיקה המבצע לא יופיע ללקוחות ולא יחושב בהזמנות חדשות. הזמנות קיימות שכבר ננעל להן מחיר לא משתנות."
         onCancel={() => setConfirmDel({ open: false, promotion: null })}
         onConfirm={onConfirmDelete}
+      />
+
+      <ConfirmDeleteModal
+        open={confirmCartDel.open}
+        busy={busy}
+        title="מחיקת מבצע סל"
+        text={
+          confirmCartDel.rule
+            ? `למחוק את מבצע הסל "${confirmCartDel.rule.title || `#${confirmCartDel.rule.id}`}"?`
+            : "למחוק מבצע סל?"
+        }
+        hint="המחיקה תשפיע על חישוב הזמנות חדשות ועדכונים עתידיים להזמנות פתוחות."
+        onCancel={() => setConfirmCartDel({ open: false, rule: null })}
+        onConfirm={onConfirmCartDelete}
       />
     </div>
   );

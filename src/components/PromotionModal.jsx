@@ -101,6 +101,7 @@ export function PromotionModal({ open, mode, busy, promotion, onCancel, onSave }
   const [fixedPrice, setFixedPrice] = useState("");
   const [bundleBuyQty, setBundleBuyQty] = useState("");
   const [bundlePayPrice, setBundlePayPrice] = useState("");
+  const [maxDiscountedQty, setMaxDiscountedQty] = useState("");
   const [description, setDescription] = useState("");
   const [startDate, setStartDate] = useState(todayDateLocal());
   const [startTime, setStartTime] = useState("00:00");
@@ -150,6 +151,9 @@ export function PromotionModal({ open, mode, busy, promotion, onCancel, onSave }
       setBundlePayPrice(
         promotion.bundle_pay_price == null ? "" : String(promotion.bundle_pay_price),
       );
+      setMaxDiscountedQty(
+        promotion.max_discounted_qty == null ? "" : String(promotion.max_discounted_qty),
+      );
       setDescription(promotion.description || "");
       setStartDate(start.date || todayDateLocal());
       setStartTime(start.time || "00:00");
@@ -164,6 +168,7 @@ export function PromotionModal({ open, mode, busy, promotion, onCancel, onSave }
       setFixedPrice("");
       setBundleBuyQty("");
       setBundlePayPrice("");
+      setMaxDiscountedQty("");
       setDescription("");
       setStartDate(todayDateLocal());
       setStartTime("00:00");
@@ -220,6 +225,13 @@ export function PromotionModal({ open, mode, busy, promotion, onCancel, onSave }
       if (price === null || price < 0) errors.bundle_pay_price = "מחיר החבילה לא תקין";
     }
 
+    if (String(maxDiscountedQty || "").trim()) {
+      const maxQty = numberValue(maxDiscountedQty);
+      if (maxQty === null || maxQty <= 0) {
+        errors.max_discounted_qty = "מקסימום במבצע חייב להיות גדול מ-0";
+      }
+    }
+
     return errors;
   }
 
@@ -244,6 +256,11 @@ export function PromotionModal({ open, mode, busy, promotion, onCancel, onSave }
     if (kind === "BUNDLE") {
       payload.bundle_buy_qty = Number(bundleBuyQty);
       payload.bundle_pay_price = Number(bundlePayPrice);
+    }
+    if (String(maxDiscountedQty || "").trim()) {
+      payload.max_discounted_qty = Number(maxDiscountedQty);
+    } else {
+      payload.max_discounted_qty = null;
     }
 
     onSave?.(payload);
@@ -417,6 +434,19 @@ export function PromotionModal({ open, mode, busy, promotion, onCancel, onSave }
                   </InputShell>
                 </>
               ) : null}
+
+              <InputShell label="מקסימום יחידות במבצע" error={fieldErrors.max_discounted_qty} className="sm:col-span-4">
+                <input
+                  className="mt-2 w-full rounded-2xl bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-slate-200"
+                  value={maxDiscountedQty}
+                  onChange={(e) => setMaxDiscountedQty(e.target.value)}
+                  inputMode="decimal"
+                  placeholder="ריק = ללא הגבלה"
+                />
+                <div className="mt-1 text-xs text-slate-500">
+                  לדוגמה: 2 אומר שרק 2 יחידות ראשונות יקבלו את המבצע.
+                </div>
+              </InputShell>
 
               <InputShell label="תאריך התחלה" error={fieldErrors.start_at} className="sm:col-span-3">
                 <input

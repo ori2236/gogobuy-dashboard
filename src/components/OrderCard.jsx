@@ -75,6 +75,10 @@ function OrderMetaPills({ order, isDelivery }) {
         <OrderPill className="bg-orange-50 text-orange-700">
           🚚 דמי משלוח {formatMoney(deliveryFee)}
         </OrderPill>
+      ) : isDelivery ? (
+        <OrderPill className="bg-emerald-50 text-emerald-700">
+          🚚 משלוח חינם
+        </OrderPill>
       ) : null}
       {showPackaging
         ? packagingPills.map((pill) => (
@@ -106,6 +110,30 @@ function DeliveryDetailsBox({ order, compact = false }) {
           📝 הערה לשליח: {order.delivery_notes}
         </div>
       ) : null}
+    </div>
+  );
+}
+
+
+function CartPromotionsCard({ lines }) {
+  const cleanLines = Array.isArray(lines)
+    ? lines.map((line) => String(line || "").trim()).filter(Boolean)
+    : [];
+  if (!cleanLines.length) return null;
+
+  return (
+    <div className="mt-4 rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-right shadow-sm" dir="rtl">
+      <div className="flex items-center justify-between gap-3">
+        <div className="text-xs font-bold text-emerald-900">מבצעי סל שחלים על ההזמנה</div>
+        <span className="rounded-full bg-white px-2 py-1 text-[11px] font-bold text-emerald-700">
+          למלקט
+        </span>
+      </div>
+      <div className="mt-2 grid gap-1 text-sm font-semibold leading-6 text-emerald-950">
+        {cleanLines.map((line, idx) => (
+          <div key={`${line}-${idx}`}>• {line}</div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -312,6 +340,7 @@ export function OrderCard({
         ) : null}
 
         <CustomerNoteCard note={customerNoteToPicker} className="mt-4" />
+        <CartPromotionsCard lines={order.cart_promotion_lines} />
 
         {isPreparing ? (
           <div className="mt-4 text-right text-[11px] font-semibold text-slate-500">
