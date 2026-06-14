@@ -126,19 +126,18 @@ function CartPromotionsCard({ lines, items }) {
   const giftLines = Array.isArray(items)
     ? items
         .filter(isGiftOrderItem)
-        .map((item) => `🎁 צריך ללקט מתנה: ${item.name || "מוצר מתנה"}`)
+        .filter((item) => {
+          const name = String(item.name || "").trim();
+          return !name || !cleanLines.some((line) => line.includes(name));
+        })
+        .map((item) => `🎁 מתנה ממבצע סל: ${item.name || "מוצר מתנה"}`)
     : [];
   const allLines = Array.from(new Set([...cleanLines, ...giftLines]));
   if (!allLines.length) return null;
 
   return (
     <div className="mt-4 rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-right shadow-sm" dir="rtl">
-      <div className="flex items-center justify-between gap-3">
-        <div className="text-xs font-bold text-emerald-900">מבצעי סל שחלים על ההזמנה</div>
-        <span className="rounded-full bg-white px-2 py-1 text-[11px] font-bold text-emerald-700">
-          למלקט
-        </span>
-      </div>
+      <div className="text-xs font-bold text-emerald-900">מבצעי סל שחלים על ההזמנה</div>
       <div className="mt-2 grid gap-1 text-sm font-semibold leading-6 text-emerald-950">
         {allLines.map((line, idx) => (
           <div key={`${line}-${idx}`}>• {line}</div>
@@ -153,12 +152,7 @@ function CustomerNoteCard({ note, className = "" }) {
 
   return (
     <div className={cn("rounded-2xl border border-slate-200 bg-white p-4 text-right shadow-sm", className)} dir="rtl">
-      <div className="flex items-center justify-between gap-3">
-        <div className="text-xs font-bold text-slate-800">הערה שנשלחה מהלקוח</div>
-        <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-500">
-          למלקט
-        </span>
-      </div>
+      <div className="text-xs font-bold text-slate-800">הערה שנשלחה מהלקוח</div>
       <div className="mt-2 whitespace-pre-wrap text-sm font-medium leading-6 text-slate-700">
         {note}
       </div>

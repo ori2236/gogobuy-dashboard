@@ -176,7 +176,7 @@ export function OrderItemRow({
                 {item.name}{" "}
                 {isGift ? (
                   <span className="me-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-extrabold text-emerald-800">
-                    צריך ללקט · מתנה 🎁
+                    מתנה 🎁
                   </span>
                 ) : null}
                 {ruTxt ? (

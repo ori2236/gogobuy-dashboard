@@ -107,18 +107,44 @@ function fmtShortNumber(v) {
 
 function promoValueText(promo) {
   if (!promo) return "—";
-  const max = promo.max_discounted_qty
-    ? `, עד ${fmtShortNumber(promo.max_discounted_qty)} יח׳`
-    : "";
-  if (promo.kind === "PERCENT_OFF") return `${fmtShortNumber(promo.percent_off)}% הנחה${max}`;
-  if (promo.kind === "AMOUNT_OFF") return `${fmtMoney(promo.amount_off)} הנחה${max}`;
-  if (promo.kind === "FIXED_PRICE") return `מחיר ${fmtMoney(promo.fixed_price)}${max}`;
+  if (promo.kind === "PERCENT_OFF") return `${fmtShortNumber(promo.percent_off)}% הנחה`;
+  if (promo.kind === "AMOUNT_OFF") return `${fmtMoney(promo.amount_off)} הנחה`;
+  if (promo.kind === "FIXED_PRICE") return `מחיר ${fmtMoney(promo.fixed_price)}`;
   if (promo.kind === "BUNDLE") {
-    return `${fmtShortNumber(promo.bundle_buy_qty)} יח׳ ב-${fmtMoney(promo.bundle_pay_price)}${max}`;
+    return `${fmtShortNumber(promo.bundle_buy_qty)} יח׳ ב-${fmtMoney(promo.bundle_pay_price)}`;
   }
   return "—";
 }
 
+function promoMaxText(promo) {
+  return promo?.max_discounted_qty ? `${fmtShortNumber(promo.max_discounted_qty)} יח׳` : "ללא הגבלה";
+}
+
+function cartRuleThresholdText(rule) {
+  return fmtMoney(rule?.threshold_amount);
+}
+
+function cartRuleBenefitText(rule) {
+  if (!rule) return "—";
+  if (rule.rule_type === "DELIVERY_FEE_OVERRIDE") {
+    const fee = Number(rule.delivery_fee_override || 0);
+    return fee <= 0 ? "משלוח חינם" : `משלוח ב-${fmtMoney(fee)}`;
+  }
+  if (rule.rule_type === "GIFT_PRODUCT") {
+    const qty = Number(rule.reward_qty || 1);
+    const qtyText = Number.isFinite(qty) && qty > 1 ? `${fmtShortNumber(qty)} × ` : "";
+    return `${qtyText}${rule.reward_product_name || "מוצר"} מתנה`;
+  }
+  if (rule.rule_type === "THRESHOLD_PRODUCT_FIXED_PRICE") {
+    return `${rule.reward_product_name || "מוצר"} ב-${fmtMoney(rule.reward_fixed_price)}`;
+  }
+  return "—";
+}
+
+function cartRuleMaxText(rule) {
+  if (rule?.rule_type !== "THRESHOLD_PRODUCT_FIXED_PRICE") return "—";
+  return rule.reward_max_qty ? `${fmtShortNumber(rule.reward_max_qty)} יח׳` : "ללא הגבלה";
+}
 
 function cartRuleValueText(rule) {
   if (!rule) return "—";
@@ -211,6 +237,7 @@ export function PromotionsPage({
 }) {
   const [status, setStatus] = useState("all");
   const [q, setQ] = useState("");
+  const [promoTab, setPromoTab] = useState("products");
   const [category, setCategory] = useState("");
   const [subCategory, setSubCategory] = useState("");
   const [sortValue, setSortValue] = useState("default:desc");
@@ -315,6 +342,9 @@ export function PromotionsPage({
     return FILTERS.find((f) => f.value === status)?.label || "כל המבצעים";
   }, [status]);
 
+  const isCartTab = promoTab === "cart";
+  const currentFilteredCount = isCartTab ? cartRules.length : promotions.length;
+
   async function onSavePromotion(payload) {
     try {
       if (modal.mode === "create") {
@@ -395,27 +425,30 @@ export function PromotionsPage({
           </div>
 
           <div className="flex flex-wrap items-center justify-end gap-2">
-            <button
-              className="btn-success"
-              onClick={() =>
-                setModal({ open: true, mode: "create", promotion: null })
-              }
-              disabled={busy}
-            >
-              <Plus className="h-4 w-4" />
-              הוסף מבצע מוצר
-            </button>
-            <button
-              className="btn-secondary bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
-              onClick={() =>
-                setCartModal({ open: true, mode: "create", rule: null })
-              }
-              disabled={busy}
-              title="מבצע לפי סכום סל: משלוח מוזל/חינם, מתנה, או מחיר מיוחד למוצר"
-            >
-              <Gift className="h-4 w-4" />
-              הוסף מבצע סל
-            </button>
+            {isCartTab ? (
+              <button
+                className="btn-success"
+                onClick={() =>
+                  setCartModal({ open: true, mode: "create", rule: null })
+                }
+                disabled={busy}
+                title="מבצע לפי סכום סל: משלוח מוזל/חינם, מתנה, או מחיר מיוחד למוצר"
+              >
+                <Plus className="h-4 w-4" />
+                הוסף מבצע סל
+              </button>
+            ) : (
+              <button
+                className="btn-success"
+                onClick={() =>
+                  setModal({ open: true, mode: "create", promotion: null })
+                }
+                disabled={busy}
+              >
+                <Plus className="h-4 w-4" />
+                הוסף מבצע מוצר
+              </button>
+            )}
           </div>
         </div>
 
@@ -448,57 +481,92 @@ export function PromotionsPage({
           />
         </div>
 
+        <div className="mt-5 flex flex-wrap items-center justify-end gap-2 rounded-2xl border border-slate-100 bg-slate-50 p-2" dir="rtl">
+          <button
+            type="button"
+            onClick={() => setPromoTab("products")}
+            className={cn(
+              "inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-extrabold transition",
+              promoTab === "products"
+                ? "bg-slate-950 text-white shadow-sm"
+                : "bg-white text-slate-700 hover:bg-slate-100",
+            )}
+          >
+            <BadgePercent className="h-4 w-4" />
+            מבצעי מוצרים
+            <span className="rounded-full bg-white/15 px-2 py-0.5 text-xs">{promotions.length}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setPromoTab("cart")}
+            className={cn(
+              "inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-extrabold transition",
+              promoTab === "cart"
+                ? "bg-emerald-700 text-white shadow-sm"
+                : "bg-white text-slate-700 hover:bg-slate-100",
+            )}
+          >
+            <Sparkles className="h-4 w-4" />
+            מבצעי סל
+            <span className="rounded-full bg-white/15 px-2 py-0.5 text-xs">{cartRules.length}</span>
+          </button>
+        </div>
+
         <div className="mt-5 rounded-2xl bg-slate-200 p-4">
           <div className="grid gap-3 sm:grid-cols-12">
-            <div className="sm:col-span-3">
-              <div className="text-xs font-bold text-slate-700">קטגוריה</div>
-              <select
-                className="mt-2 w-full rounded-2xl bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-slate-200"
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-              >
-                <option value="">כל הקטגוריות</option>
-                {categoryList.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {!isCartTab ? (
+              <>
+                <div className="sm:col-span-3">
+                  <div className="text-xs font-bold text-slate-700">קטגוריה</div>
+                  <select
+                    className="mt-2 w-full rounded-2xl bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-slate-200"
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                  >
+                    <option value="">כל הקטגוריות</option>
+                    {categoryList.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-            <div className="sm:col-span-3">
-              <div className="text-xs font-bold text-slate-700">תת-קטגוריה</div>
-              <select
-                className="mt-2 w-full rounded-2xl bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-slate-200 disabled:bg-slate-50 disabled:text-slate-400"
-                value={subCategory}
-                disabled={!category}
-                onChange={(e) => setSubCategory(e.target.value)}
-              >
-                <option value="">כל תתי-הקטגוריות</option>
-                {subCategoryList.map((sc) => (
-                  <option key={sc} value={sc}>
-                    {sc}
-                  </option>
-                ))}
-              </select>
-            </div>
+                <div className="sm:col-span-3">
+                  <div className="text-xs font-bold text-slate-700">תת-קטגוריה</div>
+                  <select
+                    className="mt-2 w-full rounded-2xl bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-slate-200 disabled:bg-slate-50 disabled:text-slate-400"
+                    value={subCategory}
+                    disabled={!category}
+                    onChange={(e) => setSubCategory(e.target.value)}
+                  >
+                    <option value="">כל תתי-הקטגוריות</option>
+                    {subCategoryList.map((sc) => (
+                      <option key={sc} value={sc}>
+                        {sc}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-            <div className="sm:col-span-3">
-              <div className="text-xs font-bold text-slate-700">מיון</div>
-              <select
-                className="mt-2 w-full rounded-2xl bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-slate-200"
-                value={sortValue}
-                onChange={(e) => setSortValue(e.target.value)}
-              >
-                {SORT_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+                <div className="sm:col-span-3">
+                  <div className="text-xs font-bold text-slate-700">מיון</div>
+                  <select
+                    className="mt-2 w-full rounded-2xl bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-slate-200"
+                    value={sortValue}
+                    onChange={(e) => setSortValue(e.target.value)}
+                  >
+                    {SORT_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            ) : null}
 
-            <div className="sm:col-span-3">
+            <div className={isCartTab ? "sm:col-span-12" : "sm:col-span-3"}>
               <div className="text-xs font-bold text-slate-700">חיפוש</div>
               <div className="relative mt-2">
                 <div className="pointer-events-none absolute inset-y-0 start-3 flex items-center text-slate-400">
@@ -508,15 +576,15 @@ export function PromotionsPage({
                   className="w-full rounded-2xl bg-white ps-10 pe-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-slate-200"
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
-                  placeholder="שם מוצר / תיאור / שם באנגלית"
+                  placeholder={isCartTab ? "שם מבצע סל / תיאור" : "שם מוצר / תיאור / שם באנגלית"}
                 />
               </div>
             </div>
           </div>
 
-          {catQuery.isLoading ? (
+          {!isCartTab && catQuery.isLoading ? (
             <div className="mt-3 text-sm text-slate-600">טוען קטגוריות…</div>
-          ) : catQuery.error ? (
+          ) : !isCartTab && catQuery.error ? (
             <div className="mt-3 rounded-2xl border border-rose-100 bg-rose-50 p-3 text-sm text-rose-900">
               שגיאה בטעינת קטגוריות: {String(catQuery.error?.message || "")}
             </div>
@@ -525,21 +593,22 @@ export function PromotionsPage({
 
         <div className="mt-4 flex flex-wrap items-center justify-end gap-2" dir="rtl">
           <span className="pill bg-amber-50 text-amber-700">
-            {activeFilterLabel}: {promotions.length}
+            {activeFilterLabel}: {currentFilteredCount}
           </span>
-          {category ? (
+          {!isCartTab && category ? (
             <span className="pill bg-slate-100 text-slate-700">
               קטגוריה: {category}
             </span>
           ) : null}
-          {subCategory ? (
+          {!isCartTab && subCategory ? (
             <span className="pill bg-slate-100 text-slate-700">
               תת-קטגוריה: {subCategory}
             </span>
           ) : null}
         </div>
 
-        <div className="mt-3 overflow-hidden rounded-2xl border border-slate-100 bg-white">
+        {!isCartTab ? (
+          <div className="mt-3 overflow-hidden rounded-2xl border border-slate-100 bg-white">
           <div className="overflow-x-auto">
             <table className="min-w-full text-right text-sm">
               <thead className="bg-slate-50 text-xs font-extrabold text-slate-700">
@@ -548,23 +617,24 @@ export function PromotionsPage({
                   <th className="px-4 py-3">קטגוריה</th>
                   <th className="px-4 py-3">סוג</th>
                   <th className="px-4 py-3">ערך</th>
+                  <th className="px-4 py-3">מקסימום</th>
                   <th className="px-4 py-3">תיאור</th>
                   <th className="px-4 py-3">תוקף</th>
                   <th className="px-3 py-3">סטטוס</th>
-                  <th className="px-16 py-3">פעולות</th>
+                  <th className="px-3 py-3">פעולות</th>
                 </tr>
               </thead>
 
               <tbody className="divide-y divide-slate-100">
                 {promosQuery.isLoading ? (
                   <tr>
-                    <td className="px-4 py-10 text-center text-slate-500" colSpan={8}>
+                    <td className="px-4 py-10 text-center text-slate-500" colSpan={9}>
                       טוען מבצעים…
                     </td>
                   </tr>
                 ) : promosQuery.error ? (
                   <tr>
-                    <td className="px-4 py-10 text-center text-rose-700" colSpan={8}>
+                    <td className="px-4 py-10 text-center text-rose-700" colSpan={9}>
                       שגיאה בטעינת מבצעים: {String(promosQuery.error?.message || "")}
                     </td>
                   </tr>
@@ -599,6 +669,10 @@ export function PromotionsPage({
                           {promoValueText(promo)}
                         </td>
 
+                        <td className="px-4 py-3 text-slate-700">
+                          {promoMaxText(promo)}
+                        </td>
+
                         <td className="max-w-[320px] px-4 py-3 text-slate-700">
                           <div className="line-clamp-3">
                             {promo.description || "—"}
@@ -622,7 +696,7 @@ export function PromotionsPage({
                         </td>
 
                         <td className="px-3 py-3">
-                          <div className="flex items-center justify-end gap-2 whitespace-nowrap">
+                          <div className="flex flex-col items-stretch justify-end gap-2 whitespace-nowrap">
                             <button
                               className="btn-secondary"
                               disabled={busy}
@@ -652,7 +726,7 @@ export function PromotionsPage({
                   })
                 ) : (
                   <tr>
-                    <td className="px-4 py-10 text-center text-slate-500" colSpan={8}>
+                    <td className="px-4 py-10 text-center text-slate-500" colSpan={9}>
                       אין מבצעים שמתאימים לסינון הנוכחי.
                     </td>
                   </tr>
@@ -661,8 +735,10 @@ export function PromotionsPage({
             </table>
           </div>
         </div>
+        ) : null}
 
-        <div className="mt-6 overflow-hidden rounded-2xl border border-emerald-100 bg-white">
+        {isCartTab ? (
+          <div className="mt-3 overflow-hidden rounded-2xl border border-emerald-100 bg-white">
           <div className="flex flex-col gap-2 border-b border-emerald-100 bg-emerald-50 px-4 py-3 text-right sm:flex-row sm:items-center sm:justify-between" dir="rtl">
             <div>
               <div className="text-sm font-extrabold text-emerald-950">מבצעי סל</div>
@@ -670,7 +746,15 @@ export function PromotionsPage({
                 מבצעים לפי סכום הזמנה: משלוח, מתנה, או מחיר מיוחד למוצר.
               </div>
             </div>
-            <span className="pill bg-white text-emerald-700">{activeFilterLabel}: {cartRules.length}</span>
+            <button
+              type="button"
+              className="btn-success bg-emerald-600 hover:bg-emerald-700"
+              onClick={() => setCartModal({ open: true, mode: "create", rule: null })}
+              disabled={busy}
+            >
+              <Plus className="h-4 w-4" />
+              הוסף מבצע סל
+            </button>
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-full text-right text-sm">
@@ -678,20 +762,22 @@ export function PromotionsPage({
                 <tr>
                   <th className="px-4 py-3">סוג</th>
                   <th className="px-4 py-3">שם המבצע</th>
-                  <th className="px-4 py-3">מה קורה בפועל</th>
+                  <th className="px-4 py-3">סכום מינימלי</th>
+                  <th className="px-4 py-3">הטבה</th>
+                  <th className="px-4 py-3">מקסימום</th>
                   <th className="px-4 py-3">תוקף</th>
                   <th className="px-3 py-3">סטטוס</th>
-                  <th className="px-16 py-3">פעולות</th>
+                  <th className="px-3 py-3">פעולות</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {cartRulesQuery.isLoading ? (
                   <tr>
-                    <td className="px-4 py-10 text-center text-slate-500" colSpan={6}>טוען מבצעי סל…</td>
+                    <td className="px-4 py-10 text-center text-slate-500" colSpan={8}>טוען מבצעי סל…</td>
                   </tr>
                 ) : cartRulesQuery.error ? (
                   <tr>
-                    <td className="px-4 py-10 text-center text-rose-700" colSpan={6}>
+                    <td className="px-4 py-10 text-center text-rose-700" colSpan={8}>
                       שגיאה בטעינת מבצעי סל: {String(cartRulesQuery.error?.message || "")}
                     </td>
                   </tr>
@@ -713,14 +799,25 @@ export function PromotionsPage({
                             <div className="mt-1 line-clamp-2 text-xs text-slate-500">{rule.description}</div>
                           ) : null}
                         </td>
-                        <td className="px-4 py-3 font-bold text-slate-900">{cartRuleValueText(rule)}</td>
+                        <td className="px-4 py-3 font-bold text-slate-900">
+                          בקנייה מעל {cartRuleThresholdText(rule)}
+                        </td>
+
+                        <td className="px-4 py-3 font-bold text-slate-900">
+                          {cartRuleBenefitText(rule)}
+                        </td>
+
+                        <td className="px-4 py-3 text-slate-700">
+                          {cartRuleMaxText(rule)}
+                        </td>
+
                         <td className="px-4 py-3 text-slate-700">
                           <div>מתחיל: {dates.start}</div>
                           <div className="mt-1 text-xs text-slate-500">מסתיים: {dates.end}</div>
                         </td>
                         <td className="px-3 py-3"><span className={cn("pill", s.className)}>{s.label}</span></td>
                         <td className="px-3 py-3">
-                          <div className="flex items-center justify-end gap-2 whitespace-nowrap">
+                          <div className="flex flex-col items-stretch justify-end gap-2 whitespace-nowrap">
                             <button
                               className="btn-secondary"
                               disabled={busy}
@@ -742,7 +839,7 @@ export function PromotionsPage({
                   })
                 ) : (
                   <tr>
-                    <td className="px-4 py-10 text-center text-slate-500" colSpan={6}>
+                    <td className="px-4 py-10 text-center text-slate-500" colSpan={8}>
                       אין מבצעי סל שמתאימים לסינון הנוכחי.
                     </td>
                   </tr>
@@ -750,7 +847,8 @@ export function PromotionsPage({
               </tbody>
             </table>
           </div>
-        </div>
+          </div>
+        ) : null}
       </div>
 
       <PromotionModal

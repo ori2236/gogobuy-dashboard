@@ -321,23 +321,80 @@ function isGiftOrderItem(item) {
   return Boolean(item?.is_gift) || Boolean(item?.cart_promotion_rule_id && Number(item?.line_price || 0) === 0);
 }
 
+function moneyText(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+  return `₪${n.toFixed(2)}`;
+}
+
+function formatShortQty(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return "";
+  return n.toFixed(3).replace(/\.?0+$/, "");
+}
+
+function appThreshold(app) {
+  if (app?.threshold_amount !== null && app?.threshold_amount !== undefined) {
+    const n = Number(app.threshold_amount);
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+
+  const raw = app?.metadata;
+  let meta = raw;
+  if (raw && typeof raw === "string") {
+    try { meta = JSON.parse(raw); } catch { meta = {}; }
+  }
+  const n = Number(meta?.threshold_amount);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function formatCartPromotionApplication(app) {
+  const type = String(app?.rule_type || "");
+  const threshold = appThreshold(app);
+  const prefix = threshold ? `בקנייה מעל ${moneyText(threshold)} — ` : "";
+  const rewardName = String(app?.reward_product_name || app?.reward_display_name_en || "").trim();
+
+  if (type === "DELIVERY_FEE_OVERRIDE") {
+    const fee = Number(app?.applied_value);
+    if (Number.isFinite(fee) && fee <= 0) return `🚚 ${prefix}משלוח חינם`;
+    return `🚚 ${prefix}משלוח ב-${moneyText(fee) || "—"}`;
+  }
+
+  if (type === "GIFT_PRODUCT") {
+    return `🎁 ${prefix}מתנה${rewardName ? `: ${rewardName}` : ""}`;
+  }
+
+  if (type === "THRESHOLD_PRODUCT_FIXED_PRICE") {
+    const maxText = app?.reward_max_qty ? `, עד ${formatShortQty(app.reward_max_qty)} יח׳` : "";
+    return `🏷️ ${prefix}${rewardName || "מוצר נבחר"} ב-${moneyText(app?.applied_value) || "—"}${maxText}`;
+  }
+
+  return String(app?.text_he || app?.title || "").trim();
+}
+
 function cartPromotionLines(order) {
-  const lines = Array.isArray(order.cart_promotion_lines)
-    ? order.cart_promotion_lines.map((line) => String(line || "").trim()).filter(Boolean)
-    : [];
+  const lines = [];
 
   const apps = Array.isArray(order.cart_promotion_applications)
     ? order.cart_promotion_applications
     : [];
   for (const app of apps) {
-    const text = String(app.text_he || app.title || "").trim();
+    const text = formatCartPromotionApplication(app) || String(app.text_he || app.title || "").trim();
     if (text) lines.push(text);
+  }
+
+  if (!lines.length && Array.isArray(order.cart_promotion_lines)) {
+    lines.push(...order.cart_promotion_lines.map((line) => String(line || "").trim()).filter(Boolean));
   }
 
   const giftLines = Array.isArray(order.items)
     ? order.items
         .filter(isGiftOrderItem)
-        .map((item) => `🎁 צריך ללקט מתנה: ${item.name || "מוצר מתנה"}`)
+        .filter((item) => {
+          const name = String(item.name || "").trim();
+          return !name || !lines.some((line) => line.includes(name));
+        })
+        .map((item) => `🎁 מתנה ממבצע סל: ${item.name || "מוצר מתנה"}`)
     : [];
 
   return Array.from(new Set([...lines, ...giftLines]));
@@ -575,7 +632,7 @@ function drawTable(ctx, rows, startIndex, y) {
     const supplied = item?.supplied_amount != null ? qtyWithUnit(item.supplied_amount, unit) : "";
     const isGift = item ? isGiftOrderItem(item) : false;
     const note = item
-      ? [item.picker_note || "", isGift ? "מתנה ממבצע סל - צריך ללקט" : ""].filter(Boolean).join(" | ")
+      ? [item.picker_note || "", isGift ? "מתנה ממבצע סל" : ""].filter(Boolean).join(" | ")
       : "";
     const itemName = isGift ? `${item?.name || ""} 🎁 מתנה` : item?.name || "";
 
