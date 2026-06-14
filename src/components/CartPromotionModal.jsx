@@ -55,7 +55,7 @@ function productLabel(product) {
 }
 
 function productLabelFromRule(rule) {
-  if (!rule?.reward_product_id) return "";
+  if (!rule?.reward_product_id) return String(rule?.gift_text || "").trim();
   const name = rule.reward_product_name || `#${rule.reward_product_id}`;
   const en = rule.reward_display_name_en ? ` · ${rule.reward_display_name_en}` : "";
   return `${name}${en}`;
@@ -109,11 +109,12 @@ export function CartPromotionModal({ open, mode, busy, rule, onCancel, onSave })
   const [endTime, setEndTime] = useState("00:00");
   const [fieldErrors, setFieldErrors] = useState({});
 
-  const needsRewardProduct =
+  const usesRewardProductSearch =
     ruleType === "GIFT_PRODUCT" || ruleType === "THRESHOLD_PRODUCT_FIXED_PRICE";
+  const requiresRewardProduct = ruleType === "THRESHOLD_PRODUCT_FIXED_PRICE";
   const debouncedSearch = useDebouncedValue(rewardProductSearch, 120);
   const cleanSearch = String(debouncedSearch || "").trim();
-  const canSearch = open && needsRewardProduct && cleanSearch.length >= 2;
+  const canSearch = open && usesRewardProductSearch && cleanSearch.length >= 2;
 
   const productQuery = useStockProductsInfinite({
     q: cleanSearch,
@@ -231,12 +232,14 @@ export function CartPromotionModal({ open, mode, busy, rule, onCancel, onSave })
       if (fee === null || fee < 0) errors.delivery_fee_override = "דמי משלוח לא תקינים";
     }
 
-    if (needsRewardProduct) {
+    if (requiresRewardProduct) {
       const pid = Number(rewardProductId);
       if (!Number.isInteger(pid) || pid <= 0) errors.reward_product_id = "צריך לבחור מוצר";
     }
 
     if (ruleType === "GIFT_PRODUCT") {
+      const giftText = String(rewardProductSearch || "").trim();
+      if (!rewardProductId && !giftText) errors.reward_product_id = "צריך לבחור מוצר או לכתוב מתנה";
       const qty = numberValue(rewardQty);
       if (qty === null || qty <= 0) errors.reward_qty = "כמות מתנה חייבת להיות גדולה מ-0";
     }
@@ -252,8 +255,6 @@ export function CartPromotionModal({ open, mode, busy, rule, onCancel, onSave })
       }
     }
 
-    const prio = Number(priority);
-    if (!Number.isInteger(prio) || prio < 0) errors.priority = "עדיפות חייבת להיות מספר שלם מ-0 ומעלה";
 
     return errors;
   }
@@ -283,7 +284,8 @@ export function CartPromotionModal({ open, mode, busy, rule, onCancel, onSave })
     }
 
     if (ruleType === "GIFT_PRODUCT") {
-      payload.reward_product_id = Number(rewardProductId);
+      payload.reward_product_id = rewardProductId ? Number(rewardProductId) : null;
+      payload.gift_text = rewardProductId ? null : String(rewardProductSearch || "").trim();
       payload.reward_qty = Number(rewardQty);
     }
 
@@ -367,8 +369,8 @@ export function CartPromotionModal({ open, mode, busy, rule, onCancel, onSave })
                 </InputShell>
               ) : null}
 
-              {needsRewardProduct ? (
-                <InputShell label={ruleType === "GIFT_PRODUCT" ? "מוצר מתנה" : "מוצר למחיר מיוחד"} error={fieldErrors.reward_product_id} className="relative z-30 sm:col-span-8">
+              {usesRewardProductSearch ? (
+                <InputShell label={ruleType === "GIFT_PRODUCT" ? "מתנה" : "מוצר למחיר מיוחד"} error={fieldErrors.reward_product_id} className="relative z-30 sm:col-span-8">
                   <div className="relative mt-2">
                     <div className="pointer-events-none absolute inset-y-0 start-3 flex items-center text-slate-400">
                       <PackageSearch className="h-4 w-4" />
@@ -383,7 +385,7 @@ export function CartPromotionModal({ open, mode, busy, rule, onCancel, onSave })
                         setRewardProductId("");
                         setFieldErrors((prev) => ({ ...prev, reward_product_id: "" }));
                       }}
-                      placeholder="חפש מוצר לפי שם / שם באנגלית"
+                      placeholder={ruleType === "GIFT_PRODUCT" ? "חפש מוצר מהמלאי או כתוב טקסט חופשי" : "חפש מוצר לפי שם / שם באנגלית"}
                     />
 
                     {showProductDropdown ? (
@@ -449,7 +451,7 @@ export function CartPromotionModal({ open, mode, busy, rule, onCancel, onSave })
                       value={rewardMaxQty}
                       onChange={(e) => setRewardMaxQty(e.target.value)}
                       inputMode="decimal"
-                      placeholder="ריק = ללא הגבלה"
+                      placeholder="ריק = -"
                     />
                   </InputShell>
 
@@ -465,25 +467,6 @@ export function CartPromotionModal({ open, mode, busy, rule, onCancel, onSave })
                   </InputShell>
                 </>
               ) : null}
-
-              <InputShell label="כותרת" error="" className="sm:col-span-6">
-                <input
-                  className="mt-2 w-full rounded-2xl bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-slate-200"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="אפשר להשאיר ריק והמערכת תיצור כותרת אוטומטית"
-                />
-              </InputShell>
-
-              <InputShell label="עדיפות" error={fieldErrors.priority} className="sm:col-span-2">
-                <input
-                  className="mt-2 w-full rounded-2xl bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-slate-200"
-                  value={priority}
-                  onChange={(e) => setPriority(e.target.value)}
-                  inputMode="numeric"
-                  placeholder="100"
-                />
-              </InputShell>
 
               <InputShell label="תאריך התחלה" error="" className="sm:col-span-2">
                 <input

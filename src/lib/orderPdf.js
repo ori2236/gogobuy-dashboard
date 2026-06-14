@@ -352,7 +352,11 @@ function formatCartPromotionApplication(app) {
   const type = String(app?.rule_type || "");
   const threshold = appThreshold(app);
   const prefix = threshold ? `בקנייה מעל ${moneyText(threshold)} — ` : "";
-  const rewardName = String(app?.reward_product_name || app?.reward_display_name_en || "").trim();
+  let metadata = app?.metadata || {};
+  if (metadata && typeof metadata === "string") {
+    try { metadata = JSON.parse(metadata); } catch { metadata = {}; }
+  }
+  const rewardName = String(app?.reward_product_name || app?.reward_display_name_en || app?.gift_text || metadata?.gift_text || "").trim();
 
   if (type === "DELIVERY_FEE_OVERRIDE") {
     const fee = Number(app?.applied_value);

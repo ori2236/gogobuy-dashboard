@@ -117,7 +117,7 @@ function promoValueText(promo) {
 }
 
 function promoMaxText(promo) {
-  return promo?.max_discounted_qty ? `${fmtShortNumber(promo.max_discounted_qty)} יח׳` : "ללא הגבלה";
+  return promo?.max_discounted_qty ? `${fmtShortNumber(promo.max_discounted_qty)} יח׳` : "—";
 }
 
 function cartRuleThresholdText(rule) {
@@ -133,7 +133,7 @@ function cartRuleBenefitText(rule) {
   if (rule.rule_type === "GIFT_PRODUCT") {
     const qty = Number(rule.reward_qty || 1);
     const qtyText = Number.isFinite(qty) && qty > 1 ? `${fmtShortNumber(qty)} × ` : "";
-    return `${qtyText}${rule.reward_product_name || "מוצר"} מתנה`;
+    return `${qtyText}${rule.reward_product_name || rule.gift_text || "מתנה"} מתנה`;
   }
   if (rule.rule_type === "THRESHOLD_PRODUCT_FIXED_PRICE") {
     return `${rule.reward_product_name || "מוצר"} ב-${fmtMoney(rule.reward_fixed_price)}`;
@@ -143,7 +143,7 @@ function cartRuleBenefitText(rule) {
 
 function cartRuleMaxText(rule) {
   if (rule?.rule_type !== "THRESHOLD_PRODUCT_FIXED_PRICE") return "—";
-  return rule.reward_max_qty ? `${fmtShortNumber(rule.reward_max_qty)} יח׳` : "ללא הגבלה";
+  return rule.reward_max_qty ? `${fmtShortNumber(rule.reward_max_qty)} יח׳` : "—";
 }
 
 function cartRuleValueText(rule) {
@@ -154,7 +154,7 @@ function cartRuleValueText(rule) {
     return fee <= 0 ? `${threshold} ומעלה → משלוח חינם` : `${threshold} ומעלה → משלוח ${fmtMoney(fee)}`;
   }
   if (rule.rule_type === "GIFT_PRODUCT") {
-    return `${threshold} ומעלה → ${rule.reward_product_name || "מוצר"} מתנה`;
+    return `${threshold} ומעלה → ${rule.reward_product_name || rule.gift_text || "מתנה"} מתנה`;
   }
   if (rule.rule_type === "THRESHOLD_PRODUCT_FIXED_PRICE") {
     const max = rule.reward_max_qty ? `, עד ${fmtShortNumber(rule.reward_max_qty)} יח׳` : "";
@@ -406,8 +406,40 @@ export function PromotionsPage({
   }
 
   return (
-    <div className="mt-6 card p-0 overflow-hidden">
-      <div className="p-6 sm:p-7" dir="rtl">
+    <div className="mt-6">
+      <div className="flex flex-wrap items-center justify-end gap-2 rounded-2xl border border-slate-100 bg-slate-50 p-2" dir="rtl">
+        <button
+          type="button"
+          onClick={() => setPromoTab("products")}
+          className={cn(
+            "inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-extrabold transition",
+            promoTab === "products"
+              ? "bg-slate-950 text-white shadow-sm"
+              : "bg-white text-slate-700 hover:bg-slate-100",
+          )}
+        >
+          <BadgePercent className="h-4 w-4" />
+          מבצעי מוצרים
+          <span className="rounded-full bg-white/15 px-2 py-0.5 text-xs">{promotions.length}</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setPromoTab("cart")}
+          className={cn(
+            "inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-extrabold transition",
+            promoTab === "cart"
+              ? "bg-emerald-700 text-white shadow-sm"
+              : "bg-white text-slate-700 hover:bg-slate-100",
+          )}
+        >
+          <Sparkles className="h-4 w-4" />
+          מבצעי סל
+          <span className="rounded-full bg-white/15 px-2 py-0.5 text-xs">{cartRules.length}</span>
+        </button>
+      </div>
+
+      <div className="mt-3 card p-0 overflow-hidden">
+        <div className="p-6 sm:p-7" dir="rtl">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex items-start gap-4">
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-amber-50 text-amber-700">
@@ -481,36 +513,6 @@ export function PromotionsPage({
           />
         </div>
 
-        <div className="mt-5 flex flex-wrap items-center justify-end gap-2 rounded-2xl border border-slate-100 bg-slate-50 p-2" dir="rtl">
-          <button
-            type="button"
-            onClick={() => setPromoTab("products")}
-            className={cn(
-              "inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-extrabold transition",
-              promoTab === "products"
-                ? "bg-slate-950 text-white shadow-sm"
-                : "bg-white text-slate-700 hover:bg-slate-100",
-            )}
-          >
-            <BadgePercent className="h-4 w-4" />
-            מבצעי מוצרים
-            <span className="rounded-full bg-white/15 px-2 py-0.5 text-xs">{promotions.length}</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setPromoTab("cart")}
-            className={cn(
-              "inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-extrabold transition",
-              promoTab === "cart"
-                ? "bg-emerald-700 text-white shadow-sm"
-                : "bg-white text-slate-700 hover:bg-slate-100",
-            )}
-          >
-            <Sparkles className="h-4 w-4" />
-            מבצעי סל
-            <span className="rounded-full bg-white/15 px-2 py-0.5 text-xs">{cartRules.length}</span>
-          </button>
-        </div>
 
         <div className="mt-5 rounded-2xl bg-slate-200 p-4">
           <div className="grid gap-3 sm:grid-cols-12">
@@ -849,6 +851,7 @@ export function PromotionsPage({
           </div>
           </div>
         ) : null}
+        </div>
       </div>
 
       <PromotionModal

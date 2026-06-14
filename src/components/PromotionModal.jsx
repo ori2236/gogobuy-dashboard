@@ -441,7 +441,7 @@ export function PromotionModal({ open, mode, busy, promotion, onCancel, onSave }
                   value={maxDiscountedQty}
                   onChange={(e) => setMaxDiscountedQty(e.target.value)}
                   inputMode="decimal"
-                  placeholder="ריק = ללא הגבלה"
+                  placeholder="ריק = -"
                 />
                 <div className="mt-1 text-xs text-slate-500">
                   לדוגמה: 2 אומר שרק 2 יחידות ראשונות יקבלו את המבצע.
