@@ -56,6 +56,15 @@ const SORT_OPTIONS = [
   { value: "kind:desc", label: "סוג מבצע - ת׳ עד א׳" },
 ];
 
+const CART_SORT_OPTIONS = [
+  { value: "default", label: "ברירת מחדל" },
+  { value: "type", label: "סוג מבצע + סכום מינימלי" },
+  { value: "created_at:desc", label: "תאריך יצירה - מהחדש לישן" },
+  { value: "created_at:asc", label: "תאריך יצירה - מהישן לחדש" },
+  { value: "end_at:asc", label: "תאריך תפוגה - הקרוב קודם" },
+  { value: "end_at:desc", label: "תאריך תפוגה - הרחוק קודם" },
+];
+
 function useDebouncedValue(value, delayMs = 300) {
   const [debounced, setDebounced] = useState(value);
 
@@ -241,6 +250,7 @@ export function PromotionsPage({
   const [category, setCategory] = useState("");
   const [subCategory, setSubCategory] = useState("");
   const [sortValue, setSortValue] = useState("default:desc");
+  const [cartSortValue, setCartSortValue] = useState("default");
   const [modal, setModal] = useState({
     open: false,
     mode: "create",
@@ -342,8 +352,57 @@ export function PromotionsPage({
     return FILTERS.find((f) => f.value === status)?.label || "כל המבצעים";
   }, [status]);
 
+  const sortedCartRules = useMemo(() => {
+    const rows = Array.isArray(cartRules) ? cartRules.slice() : [];
+
+    function num(v) {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : 0;
+    }
+
+    function timeValue(v, fallback) {
+      if (!v) return fallback;
+      const t = new Date(v).getTime();
+      return Number.isFinite(t) ? t : fallback;
+    }
+
+    if (cartSortValue === "type") {
+      rows.sort((a, b) => {
+        const typeCmp = String(CART_RULE_LABELS[a.rule_type] || a.rule_type || "").localeCompare(
+          String(CART_RULE_LABELS[b.rule_type] || b.rule_type || ""),
+          "he",
+        );
+        if (typeCmp !== 0) return typeCmp;
+        return num(a.threshold_amount) - num(b.threshold_amount);
+      });
+      return rows;
+    }
+
+    if (cartSortValue === "created_at:asc") {
+      rows.sort((a, b) => timeValue(a.created_at, 0) - timeValue(b.created_at, 0));
+      return rows;
+    }
+
+    if (cartSortValue === "created_at:desc") {
+      rows.sort((a, b) => timeValue(b.created_at, 0) - timeValue(a.created_at, 0));
+      return rows;
+    }
+
+    if (cartSortValue === "end_at:asc") {
+      rows.sort((a, b) => timeValue(a.end_at, Number.MAX_SAFE_INTEGER) - timeValue(b.end_at, Number.MAX_SAFE_INTEGER));
+      return rows;
+    }
+
+    if (cartSortValue === "end_at:desc") {
+      rows.sort((a, b) => timeValue(b.end_at, 0) - timeValue(a.end_at, 0));
+      return rows;
+    }
+
+    return rows;
+  }, [cartRules, cartSortValue]);
+
   const isCartTab = promoTab === "cart";
-  const currentFilteredCount = isCartTab ? cartRules.length : promotions.length;
+  const currentFilteredCount = isCartTab ? sortedCartRules.length : promotions.length;
 
   async function onSavePromotion(payload) {
     try {
@@ -407,7 +466,7 @@ export function PromotionsPage({
 
   return (
     <div className="mt-6">
-      <div className="flex flex-wrap items-center justify-start gap-2 rounded-2xl border border-slate-100 bg-slate-50 p-2" dir="rtl">
+      <div className="flex flex-wrap items-center justify-end gap-2 rounded-2xl border border-slate-100 bg-slate-50 p-2" dir="rtl">
         <button
           type="button"
           onClick={() => setPromoTab("products")}
@@ -415,7 +474,7 @@ export function PromotionsPage({
             "inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-extrabold transition",
             promoTab === "products"
               ? "bg-slate-950 text-white shadow-sm"
-              : "bg-white text-slate-700 hover:bg-slate-100",
+              : "bg-slate-200/70 text-slate-700 hover:bg-slate-200",
           )}
         >
           <BadgePercent className="h-4 w-4" />
@@ -429,7 +488,7 @@ export function PromotionsPage({
             "inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-extrabold transition",
             promoTab === "cart"
               ? "bg-emerald-700 text-white shadow-sm"
-              : "bg-white text-slate-700 hover:bg-slate-100",
+              : "bg-slate-200/70 text-slate-700 hover:bg-slate-200",
           )}
         >
           <Sparkles className="h-4 w-4" />
@@ -568,7 +627,24 @@ export function PromotionsPage({
               </>
             ) : null}
 
-            <div className={isCartTab ? "sm:col-span-12" : "sm:col-span-3"}>
+            {isCartTab ? (
+              <div className="sm:col-span-4">
+                <div className="text-xs font-bold text-slate-700">מיון</div>
+                <select
+                  className="mt-2 w-full rounded-2xl bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-slate-200"
+                  value={cartSortValue}
+                  onChange={(e) => setCartSortValue(e.target.value)}
+                >
+                  {CART_SORT_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
+
+            <div className={isCartTab ? "sm:col-span-8" : "sm:col-span-3"}>
               <div className="text-xs font-bold text-slate-700">חיפוש</div>
               <div className="relative mt-2">
                 <div className="pointer-events-none absolute inset-y-0 start-3 flex items-center text-slate-400">
@@ -619,7 +695,6 @@ export function PromotionsPage({
                   <th className="px-4 py-3">קטגוריה</th>
                   <th className="px-4 py-3">סוג</th>
                   <th className="px-4 py-3">ערך</th>
-                  <th className="px-4 py-3 text-center">מקסימום</th>
                   <th className="px-4 py-3">תיאור</th>
                   <th className="px-4 py-3">תוקף</th>
                   <th className="px-3 py-3">סטטוס</th>
@@ -630,13 +705,13 @@ export function PromotionsPage({
               <tbody className="divide-y divide-slate-100">
                 {promosQuery.isLoading ? (
                   <tr>
-                    <td className="px-4 py-10 text-center text-slate-500" colSpan={9}>
+                    <td className="px-4 py-10 text-center text-slate-500" colSpan={8}>
                       טוען מבצעים…
                     </td>
                   </tr>
                 ) : promosQuery.error ? (
                   <tr>
-                    <td className="px-4 py-10 text-center text-rose-700" colSpan={9}>
+                    <td className="px-4 py-10 text-center text-rose-700" colSpan={8}>
                       שגיאה בטעינת מבצעים: {String(promosQuery.error?.message || "")}
                     </td>
                   </tr>
@@ -668,11 +743,12 @@ export function PromotionsPage({
                         </td>
 
                         <td className="px-4 py-3 font-bold text-slate-900">
-                          {promoValueText(promo)}
-                        </td>
-
-                        <td className="px-4 py-3 text-center text-slate-700">
-                          {promoMaxText(promo)}
+                          <div>{promoValueText(promo)}</div>
+                          {promo?.max_discounted_qty ? (
+                            <div className="mt-2 inline-flex rounded-full bg-rose-50 px-2.5 py-1 text-xs font-extrabold text-rose-700">
+                              מקסימום {promoMaxText(promo)} במבצע
+                            </div>
+                          ) : null}
                         </td>
 
                         <td className="max-w-[320px] px-4 py-3 text-slate-700">
@@ -728,7 +804,7 @@ export function PromotionsPage({
                   })
                 ) : (
                   <tr>
-                    <td className="px-4 py-10 text-center text-slate-500" colSpan={9}>
+                    <td className="px-4 py-10 text-center text-slate-500" colSpan={8}>
                       אין מבצעים שמתאימים לסינון הנוכחי.
                     </td>
                   </tr>
@@ -741,22 +817,11 @@ export function PromotionsPage({
 
         {isCartTab ? (
           <div className="mt-3 overflow-hidden rounded-2xl border border-emerald-100 bg-white">
-          <div className="flex flex-col gap-2 border-b border-emerald-100 bg-emerald-50 px-4 py-3 text-right sm:flex-row sm:items-center sm:justify-between" dir="rtl">
-            <div>
-              <div className="text-sm font-extrabold text-emerald-950">מבצעי סל</div>
-              <div className="mt-1 text-xs font-semibold text-emerald-800">
-                מבצעים לפי סכום הזמנה: משלוח, מתנה, או מחיר מיוחד למוצר.
-              </div>
+          <div className="border-b border-emerald-100 bg-emerald-50 px-4 py-3 text-right" dir="rtl">
+            <div className="text-sm font-extrabold text-emerald-950">מבצעי סל</div>
+            <div className="mt-1 text-xs font-semibold text-emerald-800">
+              מבצעים לפי סכום הזמנה: משלוח, מתנה, או מחיר מיוחד למוצר.
             </div>
-            <button
-              type="button"
-              className="btn-success bg-emerald-600 hover:bg-emerald-700"
-              onClick={() => setCartModal({ open: true, mode: "create", rule: null })}
-              disabled={busy}
-            >
-              <Plus className="h-4 w-4" />
-              הוסף מבצע סל
-            </button>
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-full text-right text-sm">
@@ -766,7 +831,6 @@ export function PromotionsPage({
                   <th className="px-4 py-3">שם המבצע</th>
                   <th className="px-4 py-3">סכום מינימלי</th>
                   <th className="px-4 py-3">הטבה</th>
-                  <th className="px-4 py-3 text-center">מקסימום</th>
                   <th className="px-4 py-3">תוקף</th>
                   <th className="px-3 py-3">סטטוס</th>
                   <th className="px-3 py-3">פעולות</th>
@@ -775,16 +839,16 @@ export function PromotionsPage({
               <tbody className="divide-y divide-slate-100">
                 {cartRulesQuery.isLoading ? (
                   <tr>
-                    <td className="px-4 py-10 text-center text-slate-500" colSpan={8}>טוען מבצעי סל…</td>
+                    <td className="px-4 py-10 text-center text-slate-500" colSpan={7}>טוען מבצעי סל…</td>
                   </tr>
                 ) : cartRulesQuery.error ? (
                   <tr>
-                    <td className="px-4 py-10 text-center text-rose-700" colSpan={8}>
+                    <td className="px-4 py-10 text-center text-rose-700" colSpan={7}>
                       שגיאה בטעינת מבצעי סל: {String(cartRulesQuery.error?.message || "")}
                     </td>
                   </tr>
-                ) : cartRules.length ? (
-                  cartRules.map((rule) => {
+                ) : sortedCartRules.length ? (
+                  sortedCartRules.map((rule) => {
                     const s = statusInfo(rule);
                     const dates = dateRangeText(rule);
                     return (
@@ -803,11 +867,12 @@ export function PromotionsPage({
                         </td>
 
                         <td className="px-4 py-3 font-bold text-slate-900">
-                          {cartRuleBenefitText(rule)}
-                        </td>
-
-                        <td className="px-4 py-3 text-center text-slate-700">
-                          {cartRuleMaxText(rule)}
+                          <div>{cartRuleBenefitText(rule)}</div>
+                          {rule?.rule_type === "THRESHOLD_PRODUCT_FIXED_PRICE" && rule?.reward_max_qty ? (
+                            <div className="mt-2 inline-flex rounded-full bg-rose-50 px-2.5 py-1 text-xs font-extrabold text-rose-700">
+                              מקסימום {cartRuleMaxText(rule)} במבצע
+                            </div>
+                          ) : null}
                         </td>
 
                         <td className="px-4 py-3 text-slate-700">
@@ -838,7 +903,7 @@ export function PromotionsPage({
                   })
                 ) : (
                   <tr>
-                    <td className="px-4 py-10 text-center text-slate-500" colSpan={8}>
+                    <td className="px-4 py-10 text-center text-slate-500" colSpan={7}>
                       אין מבצעי סל שמתאימים לסינון הנוכחי.
                     </td>
                   </tr>
