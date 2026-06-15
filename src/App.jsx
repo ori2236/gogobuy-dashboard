@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import {
   useBusinessSettings,
@@ -79,17 +79,17 @@ function DashboardApp({ user, onLogout }) {
   const [settingsRefetch, setSettingsRefetch] = useState(null);
   const [settingsIsFetching, setSettingsIsFetching] = useState(false);
 
-  const registerStockRefetch = (fn) => {
+  const registerStockRefetch = useCallback((fn) => {
     setStockRefetch(() => fn || null);
-  };
+  }, []);
 
-  const registerPromotionsRefetch = (fn) => {
+  const registerPromotionsRefetch = useCallback((fn) => {
     setPromotionsRefetch(() => fn || null);
-  };
+  }, []);
 
-  const registerSettingsRefetch = (fn) => {
+  const registerSettingsRefetch = useCallback((fn) => {
     setSettingsRefetch(() => fn || null);
-  };
+  }, []);
 
   const ALL_STATUSES = ["confirmed", "preparing", "ready", "delivering", "completed"];
   const {

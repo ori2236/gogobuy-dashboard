@@ -91,7 +91,6 @@ export function CartPromotionModal({ open, mode, busy, rule, onCancel, onSave })
   const isEdit = mode === "edit";
   const [ruleType, setRuleType] = useState("DELIVERY_FEE_OVERRIDE");
   const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
   const [thresholdAmount, setThresholdAmount] = useState("");
   const [deliveryFeeOverride, setDeliveryFeeOverride] = useState("");
   const [rewardProductId, setRewardProductId] = useState("");
@@ -142,7 +141,6 @@ export function CartPromotionModal({ open, mode, busy, rule, onCancel, onSave })
       const end = splitDateTime(rule.end_at);
       setRuleType(rule.rule_type || "DELIVERY_FEE_OVERRIDE");
       setTitle(rule.title || "");
-      setDescription(rule.description || "");
       setThresholdAmount(rule.threshold_amount == null ? "" : String(rule.threshold_amount));
       setDeliveryFeeOverride(
         rule.delivery_fee_override == null ? "" : String(rule.delivery_fee_override),
@@ -164,7 +162,6 @@ export function CartPromotionModal({ open, mode, busy, rule, onCancel, onSave })
     } else {
       setRuleType("DELIVERY_FEE_OVERRIDE");
       setTitle("");
-      setDescription("");
       setThresholdAmount("");
       setDeliveryFeeOverride("");
       setRewardProductId("");
@@ -269,7 +266,7 @@ export function CartPromotionModal({ open, mode, busy, rule, onCancel, onSave })
     const payload = {
       rule_type: ruleType,
       title: title.trim() || null,
-      description: description.trim() || null,
+      description: null,
       threshold_amount: Number(thresholdAmount),
       threshold_base_mode: thresholdBaseMode,
       priority: Number(priority),
@@ -357,6 +354,15 @@ export function CartPromotionModal({ open, mode, busy, rule, onCancel, onSave })
                 </label>
               </InputShell>
 
+              <InputShell label="שם המבצע" error="" className="sm:col-span-12">
+                <input
+                  className="mt-2 w-full rounded-2xl bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-slate-200"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="אם ריק, המערכת תיצור שם אוטומטי לפי סוג המבצע"
+                />
+              </InputShell>
+
               {ruleType === "DELIVERY_FEE_OVERRIDE" ? (
                 <InputShell label="דמי משלוח אחרי המבצע" error={fieldErrors.delivery_fee_override} className="sm:col-span-4">
                   <input
@@ -406,7 +412,7 @@ export function CartPromotionModal({ open, mode, busy, rule, onCancel, onSave })
                               >
                                 <span className="min-w-0 flex-1">
                                   <span className="block truncate font-bold text-slate-900">{product.name || `#${product.id}`}</span>
-                                  <span className="mt-0.5 block truncate text-xs text-slate-500" dir="ltr">{product.display_name_en || "—"}</span>
+                                  <span className="mt-0.5 block truncate text-xs text-slate-500" dir="ltr">{product.display_name_en || "-"}</span>
                                 </span>
                                 <span className="shrink-0 rounded-full bg-slate-50 px-2 py-1 text-xs font-bold text-slate-500">#{product.id}</span>
                               </button>
@@ -506,14 +512,6 @@ export function CartPromotionModal({ open, mode, busy, rule, onCancel, onSave })
                 />
               </InputShell>
 
-              <InputShell label="תיאור פנימי" error="" className="sm:col-span-12">
-                <textarea
-                  className="mt-2 min-h-20 w-full rounded-2xl bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-slate-200"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="לדוגמה: מבצע בדיקה מעל 300 ₪"
-                />
-              </InputShell>
             </div>
           </div>
 

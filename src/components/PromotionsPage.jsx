@@ -95,29 +95,29 @@ function toCategoriesMap(raw) {
 }
 
 function fmtMoney(v) {
-  if (v === null || v === undefined || Number.isNaN(Number(v))) return "—";
+  if (v === null || v === undefined || Number.isNaN(Number(v))) return "-";
   return `₪${Number(v).toFixed(2)}`;
 }
 
 function fmtShortNumber(v) {
   const n = Number(v);
-  if (!Number.isFinite(n)) return "—";
+  if (!Number.isFinite(n)) return "-";
   return n.toFixed(3).replace(/\.?0+$/, "");
 }
 
 function promoValueText(promo) {
-  if (!promo) return "—";
+  if (!promo) return "-";
   if (promo.kind === "PERCENT_OFF") return `${fmtShortNumber(promo.percent_off)}% הנחה`;
   if (promo.kind === "AMOUNT_OFF") return `${fmtMoney(promo.amount_off)} הנחה`;
   if (promo.kind === "FIXED_PRICE") return `מחיר ${fmtMoney(promo.fixed_price)}`;
   if (promo.kind === "BUNDLE") {
     return `${fmtShortNumber(promo.bundle_buy_qty)} יח׳ ב-${fmtMoney(promo.bundle_pay_price)}`;
   }
-  return "—";
+  return "-";
 }
 
 function promoMaxText(promo) {
-  return promo?.max_discounted_qty ? `${fmtShortNumber(promo.max_discounted_qty)} יח׳` : "—";
+  return promo?.max_discounted_qty ? `${fmtShortNumber(promo.max_discounted_qty)} יח׳` : "-";
 }
 
 function cartRuleThresholdText(rule) {
@@ -125,7 +125,7 @@ function cartRuleThresholdText(rule) {
 }
 
 function cartRuleBenefitText(rule) {
-  if (!rule) return "—";
+  if (!rule) return "-";
   if (rule.rule_type === "DELIVERY_FEE_OVERRIDE") {
     const fee = Number(rule.delivery_fee_override || 0);
     return fee <= 0 ? "משלוח חינם" : `משלוח ב-${fmtMoney(fee)}`;
@@ -138,16 +138,16 @@ function cartRuleBenefitText(rule) {
   if (rule.rule_type === "THRESHOLD_PRODUCT_FIXED_PRICE") {
     return `${rule.reward_product_name || "מוצר"} ב-${fmtMoney(rule.reward_fixed_price)}`;
   }
-  return "—";
+  return "-";
 }
 
 function cartRuleMaxText(rule) {
-  if (rule?.rule_type !== "THRESHOLD_PRODUCT_FIXED_PRICE") return "—";
-  return rule.reward_max_qty ? `${fmtShortNumber(rule.reward_max_qty)} יח׳` : "—";
+  if (rule?.rule_type !== "THRESHOLD_PRODUCT_FIXED_PRICE") return "-";
+  return rule.reward_max_qty ? `${fmtShortNumber(rule.reward_max_qty)} יח׳` : "-";
 }
 
 function cartRuleValueText(rule) {
-  if (!rule) return "—";
+  if (!rule) return "-";
   const threshold = fmtMoney(rule.threshold_amount);
   if (rule.rule_type === "DELIVERY_FEE_OVERRIDE") {
     const fee = Number(rule.delivery_fee_override || 0);
@@ -160,7 +160,7 @@ function cartRuleValueText(rule) {
     const max = rule.reward_max_qty ? `, עד ${fmtShortNumber(rule.reward_max_qty)} יח׳` : "";
     return `${threshold} ומעלה → ${rule.reward_product_name || "מוצר"} ב-${fmtMoney(rule.reward_fixed_price)}${max}`;
   }
-  return "—";
+  return "-";
 }
 
 function cartRuleIcon(ruleType) {
@@ -200,7 +200,7 @@ function statusInfo(promo) {
 }
 
 function dateRangeText(promo) {
-  const start = promo?.start_at ? formatDateTime(promo.start_at) : "—";
+  const start = promo?.start_at ? formatDateTime(promo.start_at) : "-";
   const end = promo?.end_at ? formatDateTime(promo.end_at) : "ללא סיום";
   return { start, end };
 }
@@ -328,7 +328,7 @@ export function PromotionsPage({
   const refetchFn = useCallback(() => {
     promosQuery.refetch();
     cartRulesQuery.refetch();
-  }, [promosQuery, cartRulesQuery]);
+  }, [promosQuery.refetch, cartRulesQuery.refetch]);
   useEffect(() => {
     onRegisterRefetch?.(refetchFn);
     return () => onRegisterRefetch?.(null);
@@ -407,7 +407,7 @@ export function PromotionsPage({
 
   return (
     <div className="mt-6">
-      <div className="flex flex-wrap items-center justify-end gap-2 rounded-2xl border border-slate-100 bg-slate-50 p-2" dir="rtl">
+      <div className="flex flex-wrap items-center justify-start gap-2 rounded-2xl border border-slate-100 bg-slate-50 p-2" dir="rtl">
         <button
           type="button"
           onClick={() => setPromoTab("products")}
@@ -619,7 +619,7 @@ export function PromotionsPage({
                   <th className="px-4 py-3">קטגוריה</th>
                   <th className="px-4 py-3">סוג</th>
                   <th className="px-4 py-3">ערך</th>
-                  <th className="px-4 py-3">מקסימום</th>
+                  <th className="px-4 py-3 text-center">מקסימום</th>
                   <th className="px-4 py-3">תיאור</th>
                   <th className="px-4 py-3">תוקף</th>
                   <th className="px-3 py-3">סטטוס</th>
@@ -649,7 +649,7 @@ export function PromotionsPage({
                         <td className="px-4 py-3 text-slate-900">
                           <div className="font-bold">{promo.product_name || `#${promo.product_id}`}</div>
                           <div className="mt-1 text-xs text-slate-500" dir="ltr">
-                            {promo.product_display_name_en || "—"}
+                            {promo.product_display_name_en || "-"}
                           </div>
                           <div className="mt-1 text-xs text-slate-500">
                             מחיר מוצר: {fmtMoney(promo.product_price)}
@@ -657,27 +657,27 @@ export function PromotionsPage({
                         </td>
 
                         <td className="px-4 py-3 text-slate-700">
-                          <div>{promo.product_category || "—"}</div>
+                          <div>{promo.product_category || "-"}</div>
                           <div className="mt-1 text-xs text-slate-500">
-                            {promo.product_sub_category || "—"}
+                            {promo.product_sub_category || "-"}
                           </div>
                         </td>
 
                         <td className="px-4 py-3 text-slate-700">
-                          {KIND_LABELS[promo.kind] || promo.kind || "—"}
+                          {KIND_LABELS[promo.kind] || promo.kind || "-"}
                         </td>
 
                         <td className="px-4 py-3 font-bold text-slate-900">
                           {promoValueText(promo)}
                         </td>
 
-                        <td className="px-4 py-3 text-slate-700">
+                        <td className="px-4 py-3 text-center text-slate-700">
                           {promoMaxText(promo)}
                         </td>
 
                         <td className="max-w-[320px] px-4 py-3 text-slate-700">
                           <div className="line-clamp-3">
-                            {promo.description || "—"}
+                            {promo.description || "-"}
                           </div>
                         </td>
 
@@ -766,7 +766,7 @@ export function PromotionsPage({
                   <th className="px-4 py-3">שם המבצע</th>
                   <th className="px-4 py-3">סכום מינימלי</th>
                   <th className="px-4 py-3">הטבה</th>
-                  <th className="px-4 py-3">מקסימום</th>
+                  <th className="px-4 py-3 text-center">מקסימום</th>
                   <th className="px-4 py-3">תוקף</th>
                   <th className="px-3 py-3">סטטוס</th>
                   <th className="px-3 py-3">פעולות</th>
@@ -797,9 +797,6 @@ export function PromotionsPage({
                         </td>
                         <td className="px-4 py-3 text-slate-900">
                           <div className="font-bold">{rule.title || `#${rule.id}`}</div>
-                          {rule.description ? (
-                            <div className="mt-1 line-clamp-2 text-xs text-slate-500">{rule.description}</div>
-                          ) : null}
                         </td>
                         <td className="px-4 py-3 font-bold text-slate-900">
                           בקנייה מעל {cartRuleThresholdText(rule)}
@@ -809,7 +806,7 @@ export function PromotionsPage({
                           {cartRuleBenefitText(rule)}
                         </td>
 
-                        <td className="px-4 py-3 text-slate-700">
+                        <td className="px-4 py-3 text-center text-slate-700">
                           {cartRuleMaxText(rule)}
                         </td>
 
