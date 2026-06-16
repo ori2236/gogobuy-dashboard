@@ -1,5 +1,5 @@
 /* eslint-disable react-hooks/set-state-in-effect */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { BadgePercent, PackageSearch, Pencil, RefreshCw, X } from "lucide-react";
 import { useStockProductsInfinite } from "../lib/hooks";
 
@@ -75,6 +75,7 @@ function InputShell({ label, error, children, className = "" }) {
 
 export function ProductGroupPromotionModal({ open, mode, busy, promotion, onCancel, onSave }) {
   const isEdit = mode === "edit";
+  const productSearchBoxRef = useRef(null);
 
   const [title, setTitle] = useState("");
   const [selectedProducts, setSelectedProducts] = useState([]);
@@ -84,7 +85,6 @@ export function ProductGroupPromotionModal({ open, mode, busy, promotion, onCanc
   const [bundlePayPrice, setBundlePayPrice] = useState("");
   const [maxDiscountedQty, setMaxDiscountedQty] = useState("");
   const [priority, setPriority] = useState("100");
-  const [isActive, setIsActive] = useState(true);
   const [description, setDescription] = useState("");
   const [startDate, setStartDate] = useState(todayDateLocal());
   const [startTime, setStartTime] = useState("00:00");
@@ -133,7 +133,6 @@ export function ProductGroupPromotionModal({ open, mode, busy, promotion, onCanc
       setBundlePayPrice(promotion.bundle_pay_price == null ? "" : String(promotion.bundle_pay_price));
       setMaxDiscountedQty(promotion.max_discounted_qty == null ? "" : String(promotion.max_discounted_qty));
       setPriority(String(promotion.priority || 100));
-      setIsActive(Boolean(promotion.is_active));
       setDescription(promotion.description || "");
       setStartDate(start.date || todayDateLocal());
       setStartTime(start.time || "00:00");
@@ -146,7 +145,6 @@ export function ProductGroupPromotionModal({ open, mode, busy, promotion, onCanc
       setBundlePayPrice("");
       setMaxDiscountedQty("");
       setPriority("100");
-      setIsActive(true);
       setDescription("");
       setStartDate(todayDateLocal());
       setStartTime("00:00");
@@ -155,6 +153,24 @@ export function ProductGroupPromotionModal({ open, mode, busy, promotion, onCanc
     }
   }, [open, isEdit, promotion]);
 
+  useEffect(() => {
+    if (!open || !productSearchFocused) return undefined;
+
+    function handlePointerDown(event) {
+      const box = productSearchBoxRef.current;
+      if (!box || box.contains(event.target)) return;
+      setProductSearchFocused(false);
+    }
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("touchstart", handlePointerDown);
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("touchstart", handlePointerDown);
+    };
+  }, [open, productSearchFocused]);
+
   if (!open) return null;
 
   const showProductDropdown = productSearchFocused && canSearch;
@@ -162,8 +178,7 @@ export function ProductGroupPromotionModal({ open, mode, busy, promotion, onCanc
   function selectProduct(product) {
     if (!product || selectedIds.has(Number(product.id))) return;
     setSelectedProducts((prev) => [...prev, product]);
-    setProductSearch("");
-    setProductSearchFocused(false);
+    setProductSearchFocused(true);
     setFieldErrors((prev) => ({ ...prev, product_ids: "" }));
   }
 
@@ -215,7 +230,7 @@ export function ProductGroupPromotionModal({ open, mode, busy, promotion, onCanc
       bundle_pay_price: Number(bundlePayPrice),
       max_discounted_qty: String(maxDiscountedQty || "").trim() ? Number(maxDiscountedQty) : null,
       priority: Number(priority || 100),
-      is_active: Boolean(isActive),
+      is_active: true,
       description: description.trim() || null,
       start_at: combineDateTime(startDate, startTime),
       end_at: endDate ? combineDateTime(endDate, endTime) : null,
@@ -242,14 +257,14 @@ export function ProductGroupPromotionModal({ open, mode, busy, promotion, onCanc
                 {isEdit ? "עריכת מבצע קבוצת מוצרים" : "הוספת מבצע קבוצת מוצרים"}
               </div>
               <div className="mt-1 text-sm text-slate-600">
-                מתאים למבצעים כמו 2 בן אנד גריס ב-₪39.90, עם אפשרות לשלב טעמים/מוצרים שונים מאותה קבוצה.
+                מבצעים שמאפשרים לשלב כמה מוצרים שונים מאותה קבוצה.
               </div>
             </div>
           </div>
 
           <div className="mt-5 rounded-2xl bg-slate-200 p-4">
             <div className="grid gap-4 sm:grid-cols-12">
-              <InputShell label="שם המבצע" error={fieldErrors.title} className="sm:col-span-8">
+              <InputShell label="שם המבצע" error={fieldErrors.title} className="sm:col-span-12">
                 <input
                   className="mt-2 w-full rounded-2xl bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-slate-200"
                   value={title}
@@ -258,17 +273,6 @@ export function ProductGroupPromotionModal({ open, mode, busy, promotion, onCanc
                 />
               </InputShell>
 
-              <InputShell label="פעיל" error="" className="sm:col-span-4">
-                <label className="mt-2 flex min-h-10 items-center justify-between rounded-2xl bg-white px-3 py-2 text-sm font-bold text-slate-800 shadow-sm">
-                  <span>{isActive ? "המבצע פעיל" : "המבצע כבוי"}</span>
-                  <input
-                    type="checkbox"
-                    checked={isActive}
-                    onChange={(e) => setIsActive(e.target.checked)}
-                    className="h-4 w-4"
-                  />
-                </label>
-              </InputShell>
 
               <InputShell label="מוצרים בקבוצה" error={fieldErrors.product_ids} className="relative z-30 sm:col-span-12">
                 <div className="mt-2 flex flex-wrap gap-2 rounded-2xl bg-white p-3 shadow-sm">
@@ -292,7 +296,7 @@ export function ProductGroupPromotionModal({ open, mode, busy, promotion, onCanc
                   )}
                 </div>
 
-                <div className="relative mt-2">
+                <div className="relative mt-2" ref={productSearchBoxRef}>
                   <div className="pointer-events-none absolute inset-y-0 start-3 flex items-center text-slate-400">
                     <PackageSearch className="h-4 w-4" />
                   </div>
@@ -300,13 +304,27 @@ export function ProductGroupPromotionModal({ open, mode, busy, promotion, onCanc
                     className="w-full rounded-2xl bg-white ps-10 pe-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-slate-200"
                     value={productSearch}
                     onFocus={() => setProductSearchFocused(true)}
-                    onBlur={() => setTimeout(() => setProductSearchFocused(false), 120)}
-                    onChange={(e) => setProductSearch(e.target.value)}
+                    onChange={(e) => {
+                      setProductSearch(e.target.value);
+                      setProductSearchFocused(true);
+                    }}
                     placeholder="חפש מוצר להוספה לקבוצה"
                   />
 
                   {showProductDropdown ? (
-                    <div className="absolute inset-x-0 top-full z-50 mt-2 max-h-64 overflow-auto rounded-2xl border border-slate-100 bg-white shadow-xl">
+                    <div className="absolute inset-x-0 top-full z-50 mt-2 max-h-72 overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-xl">
+                      <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-3 py-2 text-xs font-bold text-slate-600">
+                        <span>לחיצה על מוצר מוסיפה אותו לקבוצה והרשימה נשארת פתוחה</span>
+                        <button
+                          type="button"
+                          className="rounded-full bg-slate-100 px-3 py-1 text-slate-700 hover:bg-slate-200"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => setProductSearchFocused(false)}
+                        >
+                          סגור
+                        </button>
+                      </div>
+                      <div className="max-h-64 overflow-auto">
                       {productQuery.isLoading || productQuery.isFetching ? (
                         <div className="p-3 text-sm text-slate-500">מחפש מוצרים…</div>
                       ) : productQuery.error ? (
@@ -340,6 +358,7 @@ export function ProductGroupPromotionModal({ open, mode, busy, promotion, onCanc
                       ) : (
                         <div className="p-3 text-sm text-slate-500">לא נמצאו מוצרים</div>
                       )}
+                      </div>
                     </div>
                   ) : null}
                 </div>

@@ -70,6 +70,10 @@ const CART_SORT_OPTIONS = [
   { value: "end_at:desc", label: "תאריך תפוגה - הרחוק קודם" },
 ];
 
+const ACTIVE_PROMO_TAB_CLASS = "bg-slate-950 text-white shadow-sm";
+const PROMO_ADD_BUTTON_CLASS =
+  "inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-extrabold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60";
+
 function useDebouncedValue(value, delayMs = 300) {
   const [debounced, setDebounced] = useState(value);
 
@@ -543,14 +547,14 @@ export function PromotionsPage({
 
   return (
     <div className="mt-6">
-      <div className="flex flex-wrap items-center justify-end gap-2 rounded-2xl border border-slate-100 bg-slate-50 p-2" dir="rtl">
+      <div className="flex flex-wrap items-center justify-start gap-2 rounded-2xl border border-slate-100 bg-slate-50 p-2" dir="rtl">
         <button
           type="button"
           onClick={() => setPromoTab("products")}
           className={cn(
             "inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-extrabold transition",
             promoTab === "products"
-              ? "bg-slate-950 text-white shadow-sm"
+              ? ACTIVE_PROMO_TAB_CLASS
               : "bg-slate-200/70 text-slate-700 hover:bg-slate-200",
           )}
         >
@@ -564,7 +568,7 @@ export function PromotionsPage({
           className={cn(
             "inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-extrabold transition",
             promoTab === "groups"
-              ? "bg-purple-700 text-white shadow-sm"
+              ? ACTIVE_PROMO_TAB_CLASS
               : "bg-slate-200/70 text-slate-700 hover:bg-slate-200",
           )}
         >
@@ -578,7 +582,7 @@ export function PromotionsPage({
           className={cn(
             "inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-extrabold transition",
             promoTab === "cart"
-              ? "bg-emerald-700 text-white shadow-sm"
+              ? ACTIVE_PROMO_TAB_CLASS
               : "bg-slate-200/70 text-slate-700 hover:bg-slate-200",
           )}
         >
@@ -601,7 +605,7 @@ export function PromotionsPage({
                 ניהול מבצעים
               </div>
               <div className="mt-1 text-sm text-slate-600">
-                צפייה, סינון, הוספה, עריכה ומחיקה של מבצעי מוצרים ומבצעי סל. מבצע פעיל נקבע אוטומטית לפי תאריכים והגדרת פעיל.
+                צפייה, סינון, הוספה, עריכה ומחיקה של מבצעי מוצרים, מבצעי קבוצות ומבצעי סל. מבצע בתוקף נקבע אוטומטית לפי התאריכים.
               </div>
             </div>
           </div>
@@ -609,7 +613,7 @@ export function PromotionsPage({
           <div className="flex flex-wrap items-center justify-end gap-2">
             {isCartTab ? (
               <button
-                className="btn-success"
+                className={PROMO_ADD_BUTTON_CLASS}
                 onClick={() =>
                   setCartModal({ open: true, mode: "create", rule: null })
                 }
@@ -621,7 +625,7 @@ export function PromotionsPage({
               </button>
             ) : isGroupTab ? (
               <button
-                className="btn-success"
+                className={PROMO_ADD_BUTTON_CLASS}
                 onClick={() =>
                   setGroupModal({ open: true, mode: "create", promotion: null })
                 }
@@ -633,7 +637,7 @@ export function PromotionsPage({
               </button>
             ) : (
               <button
-                className="btn-success"
+                className={PROMO_ADD_BUTTON_CLASS}
                 onClick={() =>
                   setModal({ open: true, mode: "create", promotion: null })
                 }
@@ -923,7 +927,7 @@ export function PromotionsPage({
             <div className="border-b border-purple-100 bg-purple-50 px-4 py-3 text-right" dir="rtl">
               <div className="text-sm font-extrabold text-purple-950">מבצעי קבוצות</div>
               <div className="mt-1 text-xs font-semibold text-purple-800">
-                מבצעים שמאפשרים לשלב כמה מוצרים שונים מאותה קבוצה, למשל 2 טעמי גלידה שונים באותו מחיר.
+                מבצעים שמאפשרים לשלב כמה מוצרים שונים מאותה קבוצה
               </div>
             </div>
             <div className="overflow-x-auto">
