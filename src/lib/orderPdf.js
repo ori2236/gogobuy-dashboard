@@ -351,7 +351,7 @@ function appThreshold(app) {
 function formatCartPromotionApplication(app) {
   const type = String(app?.rule_type || "");
   const threshold = appThreshold(app);
-  const prefix = threshold ? `בקנייה מעל ${moneyText(threshold)} — ` : "";
+  const prefix = threshold ? `בקנייה מעל ${moneyText(threshold)} - ` : "";
   let metadata = app?.metadata || {};
   if (metadata && typeof metadata === "string") {
     try { metadata = JSON.parse(metadata); } catch { metadata = {}; }
@@ -361,7 +361,7 @@ function formatCartPromotionApplication(app) {
   if (type === "DELIVERY_FEE_OVERRIDE") {
     const fee = Number(app?.applied_value);
     if (Number.isFinite(fee) && fee <= 0) return `🚚 ${prefix}משלוח חינם`;
-    return `🚚 ${prefix}משלוח ב-${moneyText(fee) || "—"}`;
+    return `🚚 ${prefix}משלוח ב-${moneyText(fee) || "-"}`;
   }
 
   if (type === "GIFT_PRODUCT") {
@@ -370,7 +370,7 @@ function formatCartPromotionApplication(app) {
 
   if (type === "THRESHOLD_PRODUCT_FIXED_PRICE") {
     const maxText = app?.reward_max_qty ? `, עד ${formatShortQty(app.reward_max_qty)} יח׳` : "";
-    return `🏷️ ${prefix}${rewardName || "מוצר נבחר"} ב-${moneyText(app?.applied_value) || "—"}${maxText}`;
+    return `🏷️ ${prefix}${rewardName || "מוצר נבחר"} ב-${moneyText(app?.applied_value) || "-"}${maxText}`;
   }
 
   return String(app?.text_he || app?.title || "").trim();

@@ -18,6 +18,10 @@ import {
   createPromotion,
   updatePromotion,
   deletePromotion,
+  getProductGroupPromotions,
+  createProductGroupPromotion,
+  updateProductGroupPromotion,
+  deleteProductGroupPromotion,
   getCartPromotionRules,
   createCartPromotionRule,
   updateCartPromotionRule,
@@ -220,6 +224,55 @@ export function useDeletePromotion() {
   });
 }
 
+
+
+export function useProductGroupPromotions({ status, q, sort_by, sort_dir } = {}) {
+  return useQuery({
+    queryKey: [
+      "productGroupPromotions",
+      getShopId(),
+      {
+        status: status ?? "all",
+        q: q ?? "",
+        sort_by: sort_by ?? "default",
+        sort_dir: sort_dir ?? "desc",
+      },
+    ],
+    queryFn: () => getProductGroupPromotions({ status, q, sort_by, sort_dir }),
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    staleTime: 30_000,
+  });
+}
+
+function invalidateAfterProductGroupPromotionChange(qc) {
+  qc.invalidateQueries({ queryKey: ["productGroupPromotions"] });
+  qc.invalidateQueries({ queryKey: ["pickerOrders"] });
+}
+
+export function useCreateProductGroupPromotion() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload) => createProductGroupPromotion(payload),
+    onSuccess: () => invalidateAfterProductGroupPromotionChange(qc),
+  });
+}
+
+export function useUpdateProductGroupPromotion() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }) => updateProductGroupPromotion(id, payload),
+    onSuccess: () => invalidateAfterProductGroupPromotionChange(qc),
+  });
+}
+
+export function useDeleteProductGroupPromotion() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id) => deleteProductGroupPromotion(id),
+    onSuccess: () => invalidateAfterProductGroupPromotionChange(qc),
+  });
+}
 
 export function useCartPromotionRules({ status, q } = {}) {
   return useQuery({

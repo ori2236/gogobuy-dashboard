@@ -17,6 +17,10 @@ import {
   useCreatePromotion,
   useDeleteCartPromotionRule,
   useDeletePromotion,
+  useProductGroupPromotions,
+  useCreateProductGroupPromotion,
+  useUpdateProductGroupPromotion,
+  useDeleteProductGroupPromotion,
   usePromotions,
   useStockCategories,
   useUpdateCartPromotionRule,
@@ -26,6 +30,7 @@ import { cn, formatDateTime } from "../lib/utils";
 import { ConfirmDeleteModal } from "./ConfirmDeleteModal";
 import { PromotionModal } from "./PromotionModal";
 import { CartPromotionModal } from "./CartPromotionModal";
+import { ProductGroupPromotionModal } from "./ProductGroupPromotionModal";
 
 const FILTERS = [
   { value: "all", label: "כל המבצעים" },
@@ -172,6 +177,23 @@ function cartRuleValueText(rule) {
   return "-";
 }
 
+function groupProductsText(group) {
+  const products = Array.isArray(group?.products) ? group.products : [];
+  if (!products.length) return "-";
+  const names = products.slice(0, 4).map((p) => p.name || `#${p.id}`);
+  const more = products.length > 4 ? ` ועוד ${products.length - 4}` : "";
+  return `${names.join(", ")}${more}`;
+}
+
+function groupValueText(group) {
+  if (!group) return "-";
+  return `${fmtShortNumber(group.bundle_buy_qty)} יח׳ ב-${fmtMoney(group.bundle_pay_price)}`;
+}
+
+function groupMaxText(group) {
+  return group?.max_discounted_qty ? `${fmtShortNumber(group.max_discounted_qty)} יח׳` : "-";
+}
+
 function cartRuleIcon(ruleType) {
   if (ruleType === "DELIVERY_FEE_OVERRIDE") return <Truck className="h-4 w-4 text-blue-700" />;
   if (ruleType === "GIFT_PRODUCT") return <Gift className="h-4 w-4 text-emerald-700" />;
@@ -262,7 +284,13 @@ export function PromotionsPage({
     mode: "create",
     rule: null,
   });
+  const [groupModal, setGroupModal] = useState({
+    open: false,
+    mode: "create",
+    promotion: null,
+  });
   const [confirmCartDel, setConfirmCartDel] = useState({ open: false, rule: null });
+  const [confirmGroupDel, setConfirmGroupDel] = useState({ open: false, promotion: null });
 
   const qDebounced = useDebouncedValue(q, 300);
   const { sort_by, sort_dir } = useMemo(
@@ -310,6 +338,10 @@ export function PromotionsPage({
     status,
     q: String(qDebounced || "").trim(),
   });
+  const groupPromosQuery = useProductGroupPromotions({
+    status,
+    q: String(qDebounced || "").trim(),
+  });
 
   const createMut = useCreatePromotion();
   const updateMut = useUpdatePromotion();
@@ -317,6 +349,9 @@ export function PromotionsPage({
   const createCartMut = useCreateCartPromotionRule();
   const updateCartMut = useUpdateCartPromotionRule();
   const deleteCartMut = useDeleteCartPromotionRule();
+  const createGroupMut = useCreateProductGroupPromotion();
+  const updateGroupMut = useUpdateProductGroupPromotion();
+  const deleteGroupMut = useDeleteProductGroupPromotion();
 
   const busy =
     createMut.isPending ||
@@ -324,29 +359,35 @@ export function PromotionsPage({
     deleteMut.isPending ||
     createCartMut.isPending ||
     updateCartMut.isPending ||
-    deleteCartMut.isPending;
+    deleteCartMut.isPending ||
+    createGroupMut.isPending ||
+    updateGroupMut.isPending ||
+    deleteGroupMut.isPending;
   const promotions = promosQuery.data?.promotions || [];
   const cartRules = cartRulesQuery.data?.cart_promotion_rules || [];
+  const groupPromotions = groupPromosQuery.data?.product_group_promotions || [];
   const counts = promosQuery.data?.counts || { total: 0, active: 0, inactive: 0 };
   const cartCounts = cartRulesQuery.data?.counts || { total: 0, active: 0, inactive: 0 };
+  const groupCounts = groupPromosQuery.data?.counts || { total: 0, active: 0, inactive: 0 };
   const combinedCounts = {
-    total: Number(counts.total || 0) + Number(cartCounts.total || 0),
-    active: Number(counts.active || 0) + Number(cartCounts.active || 0),
-    inactive: Number(counts.inactive || 0) + Number(cartCounts.inactive || 0),
+    total: Number(counts.total || 0) + Number(cartCounts.total || 0) + Number(groupCounts.total || 0),
+    active: Number(counts.active || 0) + Number(cartCounts.active || 0) + Number(groupCounts.active || 0),
+    inactive: Number(counts.inactive || 0) + Number(cartCounts.inactive || 0) + Number(groupCounts.inactive || 0),
   };
 
   const refetchFn = useCallback(() => {
     promosQuery.refetch();
     cartRulesQuery.refetch();
-  }, [promosQuery.refetch, cartRulesQuery.refetch]);
+    groupPromosQuery.refetch();
+  }, [promosQuery.refetch, cartRulesQuery.refetch, groupPromosQuery.refetch]);
   useEffect(() => {
     onRegisterRefetch?.(refetchFn);
     return () => onRegisterRefetch?.(null);
   }, [onRegisterRefetch, refetchFn]);
 
   useEffect(() => {
-    onFetchingChange?.(Boolean(promosQuery.isFetching || cartRulesQuery.isFetching || catQuery.isFetching));
-  }, [onFetchingChange, promosQuery.isFetching, cartRulesQuery.isFetching, catQuery.isFetching]);
+    onFetchingChange?.(Boolean(promosQuery.isFetching || cartRulesQuery.isFetching || groupPromosQuery.isFetching || catQuery.isFetching));
+  }, [onFetchingChange, promosQuery.isFetching, cartRulesQuery.isFetching, groupPromosQuery.isFetching, catQuery.isFetching]);
 
   const activeFilterLabel = useMemo(() => {
     return FILTERS.find((f) => f.value === status)?.label || "כל המבצעים";
@@ -402,7 +443,13 @@ export function PromotionsPage({
   }, [cartRules, cartSortValue]);
 
   const isCartTab = promoTab === "cart";
-  const currentFilteredCount = isCartTab ? sortedCartRules.length : promotions.length;
+  const isGroupTab = promoTab === "groups";
+  const isProductsTab = promoTab === "products";
+  const currentFilteredCount = isCartTab
+    ? sortedCartRules.length
+    : isGroupTab
+      ? groupPromotions.length
+      : promotions.length;
 
   async function onSavePromotion(payload) {
     try {
@@ -438,6 +485,23 @@ export function PromotionsPage({
     }
   }
 
+  async function onSaveGroupPromotion(payload) {
+    try {
+      if (groupModal.mode === "create") {
+        await createGroupMut.mutateAsync(payload);
+        onNotify?.("success", "מבצע קבוצת מוצרים נוסף בהצלחה");
+      } else {
+        const id = groupModal.promotion?.id;
+        if (!id) return;
+        await updateGroupMut.mutateAsync({ id, payload });
+        onNotify?.("success", "מבצע קבוצת מוצרים עודכן בהצלחה");
+      }
+      setGroupModal({ open: false, mode: "create", promotion: null });
+    } catch (e) {
+      onNotify?.("error", e?.message || "שגיאה בשמירת מבצע קבוצת מוצרים");
+    }
+  }
+
   async function onConfirmDelete() {
     const promo = confirmDel.promotion;
     if (!promo) return;
@@ -464,6 +528,19 @@ export function PromotionsPage({
     }
   }
 
+  async function onConfirmGroupDelete() {
+    const promotion = confirmGroupDel.promotion;
+    if (!promotion) return;
+
+    try {
+      await deleteGroupMut.mutateAsync(promotion.id);
+      setConfirmGroupDel({ open: false, promotion: null });
+      onNotify?.("success", "מבצע קבוצת המוצרים נמחק");
+    } catch (e) {
+      onNotify?.("error", e?.message || "שגיאה במחיקת מבצע קבוצת מוצרים");
+    }
+  }
+
   return (
     <div className="mt-6">
       <div className="flex flex-wrap items-center justify-end gap-2 rounded-2xl border border-slate-100 bg-slate-50 p-2" dir="rtl">
@@ -480,6 +557,20 @@ export function PromotionsPage({
           <BadgePercent className="h-4 w-4" />
           מבצעי מוצרים
           <span className="rounded-full bg-white/15 px-2 py-0.5 text-xs">{promotions.length}</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setPromoTab("groups")}
+          className={cn(
+            "inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-extrabold transition",
+            promoTab === "groups"
+              ? "bg-purple-700 text-white shadow-sm"
+              : "bg-slate-200/70 text-slate-700 hover:bg-slate-200",
+          )}
+        >
+          <Sparkles className="h-4 w-4" />
+          מבצעי קבוצות
+          <span className="rounded-full bg-white/15 px-2 py-0.5 text-xs">{groupPromotions.length}</span>
         </button>
         <button
           type="button"
@@ -528,6 +619,18 @@ export function PromotionsPage({
                 <Plus className="h-4 w-4" />
                 הוסף מבצע סל
               </button>
+            ) : isGroupTab ? (
+              <button
+                className="btn-success"
+                onClick={() =>
+                  setGroupModal({ open: true, mode: "create", promotion: null })
+                }
+                disabled={busy}
+                title="מבצע על קבוצת מוצרים עם שילובים בין מוצרים שונים"
+              >
+                <Plus className="h-4 w-4" />
+                הוסף מבצע קבוצתי
+              </button>
             ) : (
               <button
                 className="btn-success"
@@ -575,7 +678,7 @@ export function PromotionsPage({
 
         <div className="mt-5 rounded-2xl bg-slate-200 p-4">
           <div className="grid gap-3 sm:grid-cols-12">
-            {!isCartTab ? (
+            {isProductsTab ? (
               <>
                 <div className="sm:col-span-3">
                   <div className="text-xs font-bold text-slate-700">קטגוריה</div>
@@ -644,7 +747,7 @@ export function PromotionsPage({
               </div>
             ) : null}
 
-            <div className={isCartTab ? "sm:col-span-8" : "sm:col-span-3"}>
+            <div className={isCartTab ? "sm:col-span-8" : isGroupTab ? "sm:col-span-12" : "sm:col-span-3"}>
               <div className="text-xs font-bold text-slate-700">חיפוש</div>
               <div className="relative mt-2">
                 <div className="pointer-events-none absolute inset-y-0 start-3 flex items-center text-slate-400">
@@ -654,15 +757,15 @@ export function PromotionsPage({
                   className="w-full rounded-2xl bg-white ps-10 pe-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-slate-200"
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
-                  placeholder={isCartTab ? "שם מבצע סל / תיאור" : "שם מוצר / תיאור / שם באנגלית"}
+                  placeholder={isCartTab ? "שם מבצע סל / תיאור" : isGroupTab ? "שם מבצע קבוצתי / מוצר בקבוצה / תיאור" : "שם מוצר / תיאור / שם באנגלית"}
                 />
               </div>
             </div>
           </div>
 
-          {!isCartTab && catQuery.isLoading ? (
+          {isProductsTab && catQuery.isLoading ? (
             <div className="mt-3 text-sm text-slate-600">טוען קטגוריות…</div>
-          ) : !isCartTab && catQuery.error ? (
+          ) : isProductsTab && catQuery.error ? (
             <div className="mt-3 rounded-2xl border border-rose-100 bg-rose-50 p-3 text-sm text-rose-900">
               שגיאה בטעינת קטגוריות: {String(catQuery.error?.message || "")}
             </div>
@@ -673,19 +776,19 @@ export function PromotionsPage({
           <span className="pill bg-amber-50 text-amber-700">
             {activeFilterLabel}: {currentFilteredCount}
           </span>
-          {!isCartTab && category ? (
+          {isProductsTab && category ? (
             <span className="pill bg-slate-100 text-slate-700">
               קטגוריה: {category}
             </span>
           ) : null}
-          {!isCartTab && subCategory ? (
+          {isProductsTab && subCategory ? (
             <span className="pill bg-slate-100 text-slate-700">
               תת-קטגוריה: {subCategory}
             </span>
           ) : null}
         </div>
 
-        {!isCartTab ? (
+        {isProductsTab ? (
           <div className="mt-3 overflow-hidden rounded-2xl border border-slate-100 bg-white">
           <div className="overflow-x-auto">
             <table className="min-w-full text-right text-sm">
@@ -815,6 +918,95 @@ export function PromotionsPage({
         </div>
         ) : null}
 
+        {isGroupTab ? (
+          <div className="mt-3 overflow-hidden rounded-2xl border border-purple-100 bg-white">
+            <div className="border-b border-purple-100 bg-purple-50 px-4 py-3 text-right" dir="rtl">
+              <div className="text-sm font-extrabold text-purple-950">מבצעי קבוצות</div>
+              <div className="mt-1 text-xs font-semibold text-purple-800">
+                מבצעים שמאפשרים לשלב כמה מוצרים שונים מאותה קבוצה, למשל 2 טעמי גלידה שונים באותו מחיר.
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-right text-sm">
+                <thead className="bg-white text-xs font-extrabold text-slate-700">
+                  <tr>
+                    <th className="px-4 py-3">שם המבצע</th>
+                    <th className="px-4 py-3">מוצרים בקבוצה</th>
+                    <th className="px-4 py-3">הטבה</th>
+                    <th className="px-4 py-3">מקסימום</th>
+                    <th className="px-4 py-3">תוקף</th>
+                    <th className="px-3 py-3">סטטוס</th>
+                    <th className="px-3 py-3">פעולות</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {groupPromosQuery.isLoading ? (
+                    <tr>
+                      <td className="px-4 py-10 text-center text-slate-500" colSpan={7}>טוען מבצעי קבוצות…</td>
+                    </tr>
+                  ) : groupPromosQuery.error ? (
+                    <tr>
+                      <td className="px-4 py-10 text-center text-rose-700" colSpan={7}>
+                        שגיאה בטעינת מבצעי קבוצות: {String(groupPromosQuery.error?.message || "")}
+                      </td>
+                    </tr>
+                  ) : groupPromotions.length ? (
+                    groupPromotions.map((group) => {
+                      const s = statusInfo(group);
+                      const dates = dateRangeText(group);
+                      return (
+                        <tr key={group.id} className="hover:bg-slate-50">
+                          <td className="px-4 py-3 text-slate-900">
+                            <div className="font-bold">{group.title || `#${group.id}`}</div>
+                            {group.description ? (
+                              <div className="mt-1 line-clamp-2 text-xs text-slate-500">{group.description}</div>
+                            ) : null}
+                          </td>
+                          <td className="max-w-[360px] px-4 py-3 text-slate-700">
+                            <div className="line-clamp-3">{groupProductsText(group)}</div>
+                            <div className="mt-1 text-xs text-slate-500">{group.products?.length || 0} מוצרים</div>
+                          </td>
+                          <td className="px-4 py-3 font-bold text-slate-900">{groupValueText(group)}</td>
+                          <td className="px-4 py-3 text-slate-700">{groupMaxText(group)}</td>
+                          <td className="px-4 py-3 text-slate-700">
+                            <div>מתחיל: {dates.start}</div>
+                            <div className="mt-1 text-xs text-slate-500">מסתיים: {dates.end}</div>
+                          </td>
+                          <td className="px-3 py-3"><span className={cn("pill", s.className)}>{s.label}</span></td>
+                          <td className="px-3 py-3">
+                            <div className="flex flex-col items-stretch justify-end gap-2 whitespace-nowrap">
+                              <button
+                                className="btn-secondary"
+                                disabled={busy}
+                                onClick={() => setGroupModal({ open: true, mode: "edit", promotion: group })}
+                              >
+                                עריכה
+                              </button>
+                              <button
+                                className="btn-outline"
+                                disabled={busy}
+                                onClick={() => setConfirmGroupDel({ open: true, promotion: group })}
+                              >
+                                מחיקה
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td className="px-4 py-10 text-center text-slate-500" colSpan={7}>
+                        אין מבצעי קבוצות שמתאימים לסינון הנוכחי.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : null}
+
         {isCartTab ? (
           <div className="mt-3 overflow-hidden rounded-2xl border border-emerald-100 bg-white">
           <div className="border-b border-emerald-100 bg-emerald-50 px-4 py-3 text-right" dir="rtl">
@@ -934,6 +1126,15 @@ export function PromotionsPage({
         onSave={onSaveCartRule}
       />
 
+      <ProductGroupPromotionModal
+        open={groupModal.open}
+        mode={groupModal.mode}
+        busy={busy}
+        promotion={groupModal.promotion}
+        onCancel={() => setGroupModal({ open: false, mode: "create", promotion: null })}
+        onSave={onSaveGroupPromotion}
+      />
+
       <ConfirmDeleteModal
         open={confirmDel.open}
         busy={busy}
@@ -946,6 +1147,20 @@ export function PromotionsPage({
         hint="לאחר המחיקה המבצע לא יופיע ללקוחות ולא יחושב בהזמנות חדשות. הזמנות קיימות שכבר ננעל להן מחיר לא משתנות."
         onCancel={() => setConfirmDel({ open: false, promotion: null })}
         onConfirm={onConfirmDelete}
+      />
+
+      <ConfirmDeleteModal
+        open={confirmGroupDel.open}
+        busy={busy}
+        title="מחיקת מבצע קבוצת מוצרים"
+        text={
+          confirmGroupDel.promotion
+            ? `למחוק את מבצע הקבוצה "${confirmGroupDel.promotion.title || `#${confirmGroupDel.promotion.id}`}"?`
+            : "למחוק מבצע קבוצת מוצרים?"
+        }
+        hint="המחיקה תשפיע על חישוב הזמנות חדשות ועדכונים עתידיים להזמנות פתוחות."
+        onCancel={() => setConfirmGroupDel({ open: false, promotion: null })}
+        onConfirm={onConfirmGroupDelete}
       />
 
       <ConfirmDeleteModal

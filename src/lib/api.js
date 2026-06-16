@@ -434,6 +434,94 @@ export async function deletePromotion(id) {
 }
 
 
+function normalizeProductGroupPromotion(raw) {
+  const products = Array.isArray(raw.products) ? raw.products : [];
+  return {
+    id: Number(raw.id),
+    shop_id: Number(raw.shop_id ?? raw.shopId ?? getShopId()),
+    title: raw.title ?? "",
+    description: raw.description ?? null,
+    kind: raw.kind ?? "BUNDLE",
+    bundle_buy_qty: toNumberOrNull(raw.bundle_buy_qty ?? raw.bundleBuyQty) ?? 2,
+    bundle_pay_price: toNumberOrNull(raw.bundle_pay_price ?? raw.bundlePayPrice) ?? 0,
+    max_discounted_qty: toNumberOrNull(
+      raw.max_discounted_qty ?? raw.maxDiscountedQty,
+    ),
+    priority: toNumberOrNull(raw.priority) ?? 100,
+    is_active: toBool(raw.is_active ?? raw.isActive, true),
+    start_at: raw.start_at ?? raw.startAt ?? null,
+    end_at: raw.end_at ?? raw.endAt ?? null,
+    created_at: raw.created_at ?? raw.createdAt ?? null,
+    updated_at: raw.updated_at ?? raw.updatedAt ?? null,
+    products: products.map((p) => ({
+      id: Number(p.id ?? p.product_id ?? p.productId),
+      name: p.name ?? p.product_name ?? null,
+      display_name_en: p.display_name_en ?? p.displayNameEn ?? null,
+      price: toNumberOrNull(p.price),
+      category: p.category ?? null,
+      sub_category: p.sub_category ?? p.subCategory ?? null,
+    })).filter((p) => Number.isInteger(p.id) && p.id > 0),
+    product_ids: Array.isArray(raw.product_ids ?? raw.productIds)
+      ? (raw.product_ids ?? raw.productIds).map(Number).filter((x) => Number.isInteger(x) && x > 0)
+      : products.map((p) => Number(p.id ?? p.product_id ?? p.productId)).filter((x) => Number.isInteger(x) && x > 0),
+    is_currently_active: toBool(
+      raw.is_currently_active ?? raw.isCurrentlyActive,
+      false,
+    ),
+    is_upcoming: toBool(raw.is_upcoming ?? raw.isUpcoming, false),
+    is_expired: toBool(raw.is_expired ?? raw.isExpired, false),
+    status: raw.status ?? "inactive",
+  };
+}
+
+export async function getProductGroupPromotions({
+  status = "all",
+  q = "",
+  sort_by = "default",
+  sort_dir = "desc",
+} = {}) {
+  const params = new URLSearchParams();
+  params.set("status", String(status || "all"));
+  params.set("limit", "500");
+  if (q) params.set("q", String(q));
+  if (sort_by) params.set("sort_by", String(sort_by));
+  if (sort_dir) params.set("sort_dir", String(sort_dir));
+
+  const res = await fetchJSON(`/api/dashboard/promotions/product-groups?${params.toString()}`);
+  const list = res.product_group_promotions ?? res.data ?? res.items ?? [];
+
+  return {
+    product_group_promotions: Array.isArray(list)
+      ? list.map(normalizeProductGroupPromotion)
+      : [],
+    counts: {
+      total: Number(res.counts?.total ?? list.length ?? 0),
+      active: Number(res.counts?.active ?? 0),
+      inactive: Number(res.counts?.inactive ?? 0),
+    },
+  };
+}
+
+export async function createProductGroupPromotion(payload) {
+  return await fetchJSON(`/api/dashboard/promotions/product-groups`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateProductGroupPromotion(id, payload) {
+  return await fetchJSON(`/api/dashboard/promotions/product-groups/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteProductGroupPromotion(id) {
+  return await fetchJSON(`/api/dashboard/promotions/product-groups/${id}`, {
+    method: "DELETE",
+  });
+}
+
 function normalizeCartPromotionRule(raw) {
   return {
     id: Number(raw.id),
