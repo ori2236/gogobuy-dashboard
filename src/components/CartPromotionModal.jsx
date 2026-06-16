@@ -101,7 +101,6 @@ export function CartPromotionModal({ open, mode, busy, rule, onCancel, onSave })
   const [rewardMaxQty, setRewardMaxQty] = useState("");
   const [thresholdBaseMode, setThresholdBaseMode] = useState("ITEMS_SUBTOTAL");
   const [priority, setPriority] = useState("100");
-  const [isActive, setIsActive] = useState(true);
   const [startDate, setStartDate] = useState("");
   const [startTime, setStartTime] = useState("00:00");
   const [endDate, setEndDate] = useState("");
@@ -154,7 +153,6 @@ export function CartPromotionModal({ open, mode, busy, rule, onCancel, onSave })
       setRewardMaxQty(rule.reward_max_qty == null ? "" : String(rule.reward_max_qty));
       setThresholdBaseMode(rule.threshold_base_mode || "ITEMS_SUBTOTAL");
       setPriority(rule.priority == null ? "100" : String(rule.priority));
-      setIsActive(Boolean(rule.is_active));
       setStartDate(start.date || "");
       setStartTime("00:00");
       setEndDate(end.date || "");
@@ -171,7 +169,6 @@ export function CartPromotionModal({ open, mode, busy, rule, onCancel, onSave })
       setRewardMaxQty("");
       setThresholdBaseMode("ITEMS_SUBTOTAL");
       setPriority("100");
-      setIsActive(true);
       setStartDate(todayDateLocal());
       setStartTime("00:00");
       setEndDate("");
@@ -270,7 +267,7 @@ export function CartPromotionModal({ open, mode, busy, rule, onCancel, onSave })
       threshold_amount: Number(thresholdAmount),
       threshold_base_mode: thresholdBaseMode,
       priority: Number(priority),
-      is_active: Boolean(isActive),
+      is_active: true,
       notify_customer: true,
       start_at: startDate ? combineDateTime(startDate, startTime) : null,
       end_at: endDate ? combineDateTime(endDate, endTime) : null,
@@ -332,7 +329,7 @@ export function CartPromotionModal({ open, mode, busy, rule, onCancel, onSave })
                 </select>
               </InputShell>
 
-              <InputShell label="סכום סל מינימלי" error={fieldErrors.threshold_amount} className="sm:col-span-3">
+              <InputShell label="סכום סל מינימלי" error={fieldErrors.threshold_amount} className="sm:col-span-6">
                 <input
                   className="mt-2 w-full rounded-2xl bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-slate-200"
                   value={thresholdAmount}
@@ -342,17 +339,6 @@ export function CartPromotionModal({ open, mode, busy, rule, onCancel, onSave })
                 />
               </InputShell>
 
-              <InputShell label="פעיל" error="" className="sm:col-span-3">
-                <label className="mt-2 flex h-10 items-center justify-between rounded-2xl bg-white px-3 text-sm font-bold text-slate-800 shadow-sm">
-                  <span>{isActive ? "כן" : "לא"}</span>
-                  <input
-                    type="checkbox"
-                    checked={isActive}
-                    onChange={(e) => setIsActive(e.target.checked)}
-                    className="h-5 w-5 accent-emerald-600"
-                  />
-                </label>
-              </InputShell>
 
               <InputShell label="שם המבצע" error="" className="sm:col-span-12">
                 <input

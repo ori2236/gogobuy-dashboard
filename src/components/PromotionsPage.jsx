@@ -38,13 +38,6 @@ const FILTERS = [
   { value: "inactive", label: "לא פעילים" },
 ];
 
-const KIND_LABELS = {
-  PERCENT_OFF: "אחוז הנחה",
-  AMOUNT_OFF: "הנחה בשקלים",
-  FIXED_PRICE: "מחיר קבוע",
-  BUNDLE: "כמות במחיר",
-};
-
 const CART_RULE_LABELS = {
   DELIVERY_FEE_OVERRIDE: "משלוח לפי סכום סל",
   GIFT_PRODUCT: "מתנה לפי סכום סל",
@@ -181,12 +174,37 @@ function cartRuleValueText(rule) {
   return "-";
 }
 
-function groupProductsText(group) {
+function productPriceText(promo) {
+  return fmtMoney(promo?.product_price);
+}
+
+function groupProductName(product) {
+  return product?.name || `#${product?.id}`;
+}
+
+function GroupProductsCell({ group }) {
   const products = Array.isArray(group?.products) ? group.products : [];
-  if (!products.length) return "-";
-  const names = products.slice(0, 4).map((p) => p.name || `#${p.id}`);
-  const more = products.length > 4 ? ` ועוד ${products.length - 4}` : "";
-  return `${names.join(", ")}${more}`;
+  if (!products.length) return <span className="text-slate-400">-</span>;
+
+  const shown = products.slice(0, 2).map(groupProductName);
+  const moreCount = Math.max(0, products.length - shown.length);
+
+  return (
+    <div>
+      <div className="leading-6 text-slate-800">
+        {shown.join(", ")}
+        {moreCount > 0 ? (
+          <>
+            {" "}
+            <span className="font-extrabold text-slate-950">ועוד {moreCount}</span>
+          </>
+        ) : null}
+      </div>
+      <div className="mt-1 text-xs font-extrabold text-slate-500">
+        {products.length} מוצרים
+      </div>
+    </div>
+  );
 }
 
 function groupValueText(group) {
@@ -205,12 +223,10 @@ function cartRuleIcon(ruleType) {
 }
 
 function statusInfo(promo) {
-  const hasCurrentFlag = Object.prototype.hasOwnProperty.call(promo || {}, "is_currently_active");
-  const currentlyActive = hasCurrentFlag ? Boolean(promo?.is_currently_active) : Boolean(promo?.is_active);
-  if (currentlyActive || promo?.status === "active") {
+  if (promo?.is_expired || promo?.status === "expired") {
     return {
-      label: "פעיל",
-      className: "bg-emerald-50 text-emerald-700",
+      label: "פג תוקף",
+      className: "bg-rose-50 text-rose-700",
     };
   }
 
@@ -221,10 +237,12 @@ function statusInfo(promo) {
     };
   }
 
-  if (promo?.is_expired || promo?.status === "expired") {
+  const hasCurrentFlag = Object.prototype.hasOwnProperty.call(promo || {}, "is_currently_active");
+  const currentlyActive = hasCurrentFlag ? Boolean(promo?.is_currently_active) : Boolean(promo?.is_active);
+  if (currentlyActive || promo?.status === "active") {
     return {
-      label: "פג תוקף",
-      className: "bg-slate-100 text-slate-600",
+      label: "פעיל",
+      className: "bg-emerald-50 text-emerald-700",
     };
   }
 
@@ -233,7 +251,6 @@ function statusInfo(promo) {
     className: "bg-slate-100 text-slate-600",
   };
 }
-
 function formatDateOnly(value) {
   if (!value) return "";
   const direct = String(value).match(/^(\d{4})-(\d{2})-(\d{2})/);
@@ -825,14 +842,14 @@ export function PromotionsPage({
             <table className="min-w-full text-right text-sm">
               <thead className="bg-slate-50 text-xs font-extrabold text-slate-700">
                 <tr>
-                  <th className="px-4 py-3">מוצר</th>
-                  <th className="px-4 py-3">קטגוריה</th>
-                  <th className="px-4 py-3">סוג</th>
-                  <th className="px-4 py-3">ערך</th>
+                  <th className="min-w-[260px] px-4 py-3">מוצר</th>
+                  <th className="px-4 py-3 text-center">קטגוריה</th>
+                  <th className="px-4 py-3 whitespace-nowrap">מחיר מוצר</th>
+                  <th className="px-4 py-3 whitespace-nowrap">מבצע</th>
                   <th className="px-4 py-3">תיאור</th>
                   <th className="px-4 py-3">תוקף</th>
-                  <th className="px-3 py-3">סטטוס</th>
-                  <th className="w-28 px-3 py-3 text-center">פעולות</th>
+                  <th className="px-3 py-3 text-center">סטטוס</th>
+                  <th className="w-24 px-2 py-3 text-center">פעולות</th>
                 </tr>
               </thead>
 
@@ -855,29 +872,26 @@ export function PromotionsPage({
                     const dates = dateRangeText(promo);
                     return (
                       <tr key={promo.id} className="hover:bg-slate-50">
-                        <td className="px-4 py-3 text-slate-900">
-                          <div className="font-bold">{promo.product_name || `#${promo.product_id}`}</div>
-                          <div className="mt-1 text-xs text-slate-500" dir="ltr">
+                        <td className="min-w-[260px] px-4 py-3 text-slate-900">
+                          <div className="font-bold leading-6">{promo.product_name || `#${promo.product_id}`}</div>
+                          <div className="mt-1 text-xs leading-5 text-slate-500" dir="ltr">
                             {promo.product_display_name_en || "-"}
-                          </div>
-                          <div className="mt-1 text-xs text-slate-500">
-                            מחיר מוצר: {fmtMoney(promo.product_price)}
                           </div>
                         </td>
 
-                        <td className="px-4 py-3 text-slate-700">
+                        <td className="px-4 py-3 text-center text-slate-700">
                           <div>{promo.product_category || "-"}</div>
                           <div className="mt-1 text-xs text-slate-500">
                             {promo.product_sub_category || "-"}
                           </div>
                         </td>
 
-                        <td className="px-4 py-3 text-slate-700">
-                          {KIND_LABELS[promo.kind] || promo.kind || "-"}
+                        <td className="px-4 py-3 whitespace-nowrap font-semibold text-slate-800">
+                          {productPriceText(promo)}
                         </td>
 
                         <td className="px-4 py-3 font-bold text-slate-900">
-                          <div>{promoValueText(promo)}</div>
+                          <div className="whitespace-nowrap">{promoValueText(promo)}</div>
                           <LimitPill>{promoMaxText(promo)}</LimitPill>
                         </td>
 
@@ -900,13 +914,13 @@ export function PromotionsPage({
                         </td>
 
                         <td className="px-3 py-3">
-                          <span className={cn("pill", s.className)}>{s.label}</span>
+                          <span className={cn("pill whitespace-nowrap", s.className)}>{s.label}</span>
                         </td>
 
-                        <td className="w-28 px-3 py-3 text-center">
-                          <div className="flex flex-col items-stretch justify-center gap-2 whitespace-nowrap">
+                        <td className="w-24 px-2 py-3 text-center">
+                          <div className="flex flex-col items-center justify-center gap-2 whitespace-nowrap">
                             <button
-                              className="btn-secondary px-3 py-2 text-xs"
+                              className="btn-secondary w-20 px-2 py-1.5 text-[13px]"
                               disabled={busy}
                               onClick={() =>
                                 setModal({
@@ -919,7 +933,7 @@ export function PromotionsPage({
                               עריכה
                             </button>
                             <button
-                              className="btn-outline px-3 py-2 text-xs"
+                              className="btn-outline w-20 px-2 py-1.5 text-[13px]"
                               disabled={busy}
                               onClick={() =>
                                 setConfirmDel({ open: true, promotion: promo })
@@ -949,7 +963,7 @@ export function PromotionsPage({
           <div className="mt-3 overflow-hidden rounded-2xl border border-purple-100 bg-white">
             <div className="border-b border-purple-100 bg-purple-50 px-4 py-3 text-right" dir="rtl">
               <div className="text-sm font-extrabold text-purple-950">מבצעי קבוצות</div>
-              <div className="mt-1 text-xs font-semibold text-purple-800">
+              <div className="mt-1 text-xs font-semibold text-slate-950">
                 מבצעים שמאפשרים לשלב כמה מוצרים שונים מאותה קבוצה
               </div>
             </div>
@@ -959,10 +973,10 @@ export function PromotionsPage({
                   <tr>
                     <th className="px-4 py-3">שם המבצע</th>
                     <th className="px-4 py-3">מוצרים בקבוצה</th>
-                    <th className="px-4 py-3">הטבה</th>
+                    <th className="px-4 py-3 whitespace-nowrap">מבצע</th>
                     <th className="px-4 py-3">תוקף</th>
-                    <th className="px-3 py-3">סטטוס</th>
-                    <th className="w-28 px-3 py-3 text-center">פעולות</th>
+                    <th className="px-3 py-3 text-center">סטטוס</th>
+                    <th className="w-24 px-2 py-3 text-center">פעולות</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -988,30 +1002,29 @@ export function PromotionsPage({
                               <div className="mt-1 line-clamp-2 text-xs text-slate-500">{group.description}</div>
                             ) : null}
                           </td>
-                          <td className="max-w-[360px] px-4 py-3 text-slate-700">
-                            <div className="line-clamp-3">{groupProductsText(group)}</div>
-                            <div className="mt-1 text-xs text-slate-500">{group.products?.length || 0} מוצרים</div>
+                          <td className="max-w-[420px] px-4 py-3 text-slate-700">
+                            <GroupProductsCell group={group} />
                           </td>
                           <td className="px-4 py-3 font-bold text-slate-900">
-                            <div>{groupValueText(group)}</div>
+                            <div className="whitespace-nowrap">{groupValueText(group)}</div>
                             <LimitPill>{groupMaxText(group)}</LimitPill>
                           </td>
                           <td className="px-4 py-3 text-slate-700">
                             <div>מתחיל: {dates.start}</div>
                             {dates.end ? <div className="mt-1 text-xs text-slate-500">עד: {dates.end}</div> : null}
                           </td>
-                          <td className="px-3 py-3"><span className={cn("pill", s.className)}>{s.label}</span></td>
-                          <td className="w-28 px-3 py-3 text-center">
-                            <div className="flex flex-col items-stretch justify-center gap-2 whitespace-nowrap">
+                          <td className="px-3 py-3"><span className={cn("pill whitespace-nowrap", s.className)}>{s.label}</span></td>
+                          <td className="w-24 px-2 py-3 text-center">
+                            <div className="flex flex-col items-center justify-center gap-2 whitespace-nowrap">
                               <button
-                                className="btn-secondary px-3 py-2 text-xs"
+                                className="btn-secondary w-20 px-2 py-1.5 text-[13px]"
                                 disabled={busy}
                                 onClick={() => setGroupModal({ open: true, mode: "edit", promotion: group })}
                               >
                                 עריכה
                               </button>
                               <button
-                                className="btn-outline px-3 py-2 text-xs"
+                                className="btn-outline w-20 px-2 py-1.5 text-[13px]"
                                 disabled={busy}
                                 onClick={() => setConfirmGroupDel({ open: true, promotion: group })}
                               >
@@ -1052,8 +1065,8 @@ export function PromotionsPage({
                   <th className="px-4 py-3">סכום מינימלי</th>
                   <th className="px-4 py-3">הטבה</th>
                   <th className="px-4 py-3">תוקף</th>
-                  <th className="px-3 py-3">סטטוס</th>
-                  <th className="w-28 px-3 py-3 text-center">פעולות</th>
+                  <th className="px-3 py-3 text-center">סטטוס</th>
+                  <th className="w-24 px-2 py-3 text-center">פעולות</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -1095,18 +1108,18 @@ export function PromotionsPage({
                           <div>מתחיל: {dates.start}</div>
                           {dates.end ? <div className="mt-1 text-xs text-slate-500">עד: {dates.end}</div> : null}
                         </td>
-                        <td className="px-3 py-3"><span className={cn("pill", s.className)}>{s.label}</span></td>
-                        <td className="w-28 px-3 py-3 text-center">
-                          <div className="flex flex-col items-stretch justify-center gap-2 whitespace-nowrap">
+                        <td className="px-3 py-3"><span className={cn("pill whitespace-nowrap", s.className)}>{s.label}</span></td>
+                        <td className="w-24 px-2 py-3 text-center">
+                          <div className="flex flex-col items-center justify-center gap-2 whitespace-nowrap">
                             <button
-                              className="btn-secondary px-3 py-2 text-xs"
+                              className="btn-secondary w-20 px-2 py-1.5 text-[13px]"
                               disabled={busy}
                               onClick={() => setCartModal({ open: true, mode: "edit", rule })}
                             >
                               עריכה
                             </button>
                             <button
-                              className="btn-outline px-3 py-2 text-xs"
+                              className="btn-outline w-20 px-2 py-1.5 text-[13px]"
                               disabled={busy}
                               onClick={() => setConfirmCartDel({ open: true, rule })}
                             >

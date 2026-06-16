@@ -271,26 +271,26 @@ export function ProductGroupPromotionModal({ open, mode, busy, promotion, onCanc
 
 
               <InputShell label="מוצרים בקבוצה" error={fieldErrors.product_ids} className="relative z-30 sm:col-span-12">
-                <div className="mt-2 flex flex-wrap gap-2 rounded-2xl bg-white p-3 shadow-sm">
-                  {selectedProducts.length ? selectedProducts.map((product) => (
-                    <span
-                      key={product.id}
-                      className="inline-flex max-w-full items-center gap-2 rounded-full bg-purple-50 px-3 py-1.5 text-xs font-bold text-purple-800"
-                    >
-                      <span className="truncate">{productLabel(product)}</span>
-                      <button
-                        type="button"
-                        className="rounded-full p-0.5 hover:bg-purple-100"
-                        onClick={() => removeProduct(product.id)}
-                        title="הסר מוצר"
+                {selectedProducts.length ? (
+                  <div className="mt-2 flex flex-wrap gap-2 rounded-2xl bg-white p-3 shadow-sm">
+                    {selectedProducts.map((product) => (
+                      <span
+                        key={product.id}
+                        className="inline-flex max-w-full items-center gap-2 rounded-full bg-purple-50 px-3 py-1.5 text-xs font-bold text-purple-800"
                       >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    </span>
-                  )) : (
-                    <span className="text-sm text-slate-500">עדיין לא נבחרו מוצרים</span>
-                  )}
-                </div>
+                        <span className="truncate">{productLabel(product)}</span>
+                        <button
+                          type="button"
+                          className="rounded-full p-0.5 hover:bg-purple-100"
+                          onClick={() => removeProduct(product.id)}
+                          title="הסר מוצר"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
 
                 <div className="relative mt-2" ref={productSearchBoxRef}>
                   <div className="pointer-events-none absolute inset-y-0 start-3 flex items-center text-slate-400">
@@ -388,9 +388,7 @@ export function ProductGroupPromotionModal({ open, mode, busy, promotion, onCanc
                   inputMode="decimal"
                   placeholder="ריק = ללא הגבלה"
                 />
-                <div className="mt-1 text-xs text-slate-500">
-                  לדוגמה: 4 אומר שאפשר לקבל עד 2 זוגות במבצע של 2 יח׳.
-                </div>
+
               </InputShell>
 
               <InputShell label="עדיפות" error={fieldErrors.priority} className="sm:col-span-3">
