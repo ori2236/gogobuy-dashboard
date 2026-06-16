@@ -106,7 +106,7 @@ export function PromotionModal({ open, mode, busy, promotion, onCancel, onSave }
   const [startDate, setStartDate] = useState(todayDateLocal());
   const [startTime, setStartTime] = useState("00:00");
   const [endDate, setEndDate] = useState("");
-  const [endTime, setEndTime] = useState("00:00");
+  const [endTime, setEndTime] = useState("23:59:59");
   const [fieldErrors, setFieldErrors] = useState({});
 
   const debouncedSearch = useDebouncedValue(productSearch, 120);
@@ -156,9 +156,9 @@ export function PromotionModal({ open, mode, busy, promotion, onCancel, onSave }
       );
       setDescription(promotion.description || "");
       setStartDate(start.date || todayDateLocal());
-      setStartTime(start.time || "00:00");
+      setStartTime("00:00");
       setEndDate(end.date || "");
-      setEndTime(end.time || "00:00");
+      setEndTime("23:59:59");
     } else {
       setProductId("");
       setProductSearch("");
@@ -173,7 +173,7 @@ export function PromotionModal({ open, mode, busy, promotion, onCancel, onSave }
       setStartDate(todayDateLocal());
       setStartTime("00:00");
       setEndDate("");
-      setEndTime("00:00");
+      setEndTime("23:59:59");
     }
   }, [open, isEdit, promotion]);
 
@@ -197,9 +197,7 @@ export function PromotionModal({ open, mode, busy, promotion, onCancel, onSave }
     if (!Number.isInteger(pid) || pid <= 0) errors.product_id = "צריך לבחור מוצר למבצע";
     if (!kind) errors.kind = "צריך לבחור סוג מבצע";
     if (!startDate) errors.start_at = "תאריך התחלה חובה";
-    if (!startTime) errors.start_at = "שעת התחלה חובה";
-
-    if (startAt && endAt && new Date(endAt).getTime() <= new Date(startAt).getTime()) {
+        if (startAt && endAt && new Date(endAt).getTime() <= new Date(startAt).getTime()) {
       errors.end_at = "תאריך הסיום חייב להיות אחרי תאריך ההתחלה";
     }
 
@@ -448,7 +446,7 @@ export function PromotionModal({ open, mode, busy, promotion, onCancel, onSave }
                 </div>
               </InputShell>
 
-              <InputShell label="תאריך התחלה" error={fieldErrors.start_at} className="sm:col-span-3">
+              <InputShell label="תאריך התחלה" error={fieldErrors.start_at} className="sm:col-span-4">
                 <input
                   className="mt-2 w-full rounded-2xl bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-slate-200"
                   value={startDate}
@@ -457,38 +455,19 @@ export function PromotionModal({ open, mode, busy, promotion, onCancel, onSave }
                 />
               </InputShell>
 
-              <InputShell label="שעת התחלה" error="" className="sm:col-span-2">
-                <input
-                  className="mt-2 w-full rounded-2xl bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-slate-200"
-                  value={startTime}
-                  onChange={(e) => setStartTime(e.target.value || "00:00")}
-                  type="time"
-                />
-              </InputShell>
-
-              <InputShell label="תאריך סיום" error={fieldErrors.end_at} className="sm:col-span-3">
+              <InputShell label="תאריך סיום" error={fieldErrors.end_at} className="sm:col-span-4">
                 <input
                   className="mt-2 w-full rounded-2xl bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-slate-200"
                   value={endDate}
                   onChange={(e) => {
                     setEndDate(e.target.value);
-                    if (e.target.value && !endTime) setEndTime("00:00");
+                    if (e.target.value && !endTime) setEndTime("23:59:59");
                   }}
                   type="date"
                 />
                 <div className="mt-1 text-xs text-slate-500">
                   אפשר להשאיר ריק למבצע ללא תאריך סיום.
                 </div>
-              </InputShell>
-
-              <InputShell label="שעת סיום" error="" className="sm:col-span-2">
-                <input
-                  className="mt-2 w-full rounded-2xl bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-slate-200 disabled:bg-slate-50 disabled:text-slate-400"
-                  value={endTime}
-                  disabled={!endDate}
-                  onChange={(e) => setEndTime(e.target.value || "00:00")}
-                  type="time"
-                />
               </InputShell>
 
               <InputShell label="תיאור" error="" className="sm:col-span-12">

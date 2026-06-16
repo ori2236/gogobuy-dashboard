@@ -26,7 +26,7 @@ import {
   useUpdateCartPromotionRule,
   useUpdatePromotion,
 } from "../lib/hooks";
-import { cn, formatDateTime } from "../lib/utils";
+import { cn } from "../lib/utils";
 import { ConfirmDeleteModal } from "./ConfirmDeleteModal";
 import { PromotionModal } from "./PromotionModal";
 import { CartPromotionModal } from "./CartPromotionModal";
@@ -135,7 +135,7 @@ function promoValueText(promo) {
 }
 
 function promoMaxText(promo) {
-  return promo?.max_discounted_qty ? `${fmtShortNumber(promo.max_discounted_qty)} יח׳` : "-";
+  return usageLimitText(promo?.max_discounted_qty);
 }
 
 function cartRuleThresholdText(rule) {
@@ -160,8 +160,8 @@ function cartRuleBenefitText(rule) {
 }
 
 function cartRuleMaxText(rule) {
-  if (rule?.rule_type !== "THRESHOLD_PRODUCT_FIXED_PRICE") return "-";
-  return rule.reward_max_qty ? `${fmtShortNumber(rule.reward_max_qty)} יח׳` : "-";
+  if (rule?.rule_type !== "THRESHOLD_PRODUCT_FIXED_PRICE") return "";
+  return usageLimitText(rule.reward_max_qty);
 }
 
 function cartRuleValueText(rule) {
@@ -195,7 +195,7 @@ function groupValueText(group) {
 }
 
 function groupMaxText(group) {
-  return group?.max_discounted_qty ? `${fmtShortNumber(group.max_discounted_qty)} יח׳` : "-";
+  return usageLimitText(group?.max_discounted_qty);
 }
 
 function cartRuleIcon(ruleType) {
@@ -234,10 +234,37 @@ function statusInfo(promo) {
   };
 }
 
+function formatDateOnly(value) {
+  if (!value) return "";
+  const direct = String(value).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (direct) return `${direct[3]}.${direct[2]}.${direct[1]}`;
+
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  return `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}.${d.getFullYear()}`;
+}
+
 function dateRangeText(promo) {
-  const start = promo?.start_at ? formatDateTime(promo.start_at) : "-";
-  const end = promo?.end_at ? formatDateTime(promo.end_at) : "ללא סיום";
-  return { start, end };
+  return {
+    start: promo?.start_at ? formatDateOnly(promo.start_at) : "-",
+    end: promo?.end_at ? formatDateOnly(promo.end_at) : "",
+  };
+}
+
+function usageLimitText(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return "";
+  const label = n === 1 ? "שימוש" : "שימושים";
+  return `עד ${fmtShortNumber(n)} ${label}`;
+}
+
+function LimitPill({ children }) {
+  if (!children) return null;
+  return (
+    <div className="mt-2 inline-flex whitespace-nowrap rounded-full bg-rose-50 px-2.5 py-1 text-[11px] font-extrabold leading-none text-rose-700">
+      {children}
+    </div>
+  );
 }
 
 function parseSortValue(sortValue) {
@@ -805,7 +832,7 @@ export function PromotionsPage({
                   <th className="px-4 py-3">תיאור</th>
                   <th className="px-4 py-3">תוקף</th>
                   <th className="px-3 py-3">סטטוס</th>
-                  <th className="px-3 py-3">פעולות</th>
+                  <th className="w-28 px-3 py-3 text-center">פעולות</th>
                 </tr>
               </thead>
 
@@ -851,11 +878,7 @@ export function PromotionsPage({
 
                         <td className="px-4 py-3 font-bold text-slate-900">
                           <div>{promoValueText(promo)}</div>
-                          {promo?.max_discounted_qty ? (
-                            <div className="mt-2 inline-flex rounded-full bg-rose-50 px-2.5 py-1 text-xs font-extrabold text-rose-700">
-                              מקסימום {promoMaxText(promo)} במבצע
-                            </div>
-                          ) : null}
+                          <LimitPill>{promoMaxText(promo)}</LimitPill>
                         </td>
 
                         <td className="max-w-[320px] px-4 py-3 text-slate-700">
@@ -869,9 +892,9 @@ export function PromotionsPage({
                             <CalendarClock className="mt-0.5 h-4 w-4 text-slate-400" />
                             <div>
                               <div>מתחיל: {dates.start}</div>
-                              <div className="mt-1 text-xs text-slate-500">
-                                מסתיים: {dates.end}
-                              </div>
+                              {dates.end ? (
+                                <div className="mt-1 text-xs text-slate-500">עד: {dates.end}</div>
+                              ) : null}
                             </div>
                           </div>
                         </td>
@@ -880,10 +903,10 @@ export function PromotionsPage({
                           <span className={cn("pill", s.className)}>{s.label}</span>
                         </td>
 
-                        <td className="px-3 py-3">
-                          <div className="flex flex-col items-stretch justify-end gap-2 whitespace-nowrap">
+                        <td className="w-28 px-3 py-3 text-center">
+                          <div className="flex flex-col items-stretch justify-center gap-2 whitespace-nowrap">
                             <button
-                              className="btn-secondary"
+                              className="btn-secondary px-3 py-2 text-xs"
                               disabled={busy}
                               onClick={() =>
                                 setModal({
@@ -896,7 +919,7 @@ export function PromotionsPage({
                               עריכה
                             </button>
                             <button
-                              className="btn-outline"
+                              className="btn-outline px-3 py-2 text-xs"
                               disabled={busy}
                               onClick={() =>
                                 setConfirmDel({ open: true, promotion: promo })
@@ -937,20 +960,19 @@ export function PromotionsPage({
                     <th className="px-4 py-3">שם המבצע</th>
                     <th className="px-4 py-3">מוצרים בקבוצה</th>
                     <th className="px-4 py-3">הטבה</th>
-                    <th className="px-4 py-3">מקסימום</th>
                     <th className="px-4 py-3">תוקף</th>
                     <th className="px-3 py-3">סטטוס</th>
-                    <th className="px-3 py-3">פעולות</th>
+                    <th className="w-28 px-3 py-3 text-center">פעולות</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {groupPromosQuery.isLoading ? (
                     <tr>
-                      <td className="px-4 py-10 text-center text-slate-500" colSpan={7}>טוען מבצעי קבוצות…</td>
+                      <td className="px-4 py-10 text-center text-slate-500" colSpan={6}>טוען מבצעי קבוצות…</td>
                     </tr>
                   ) : groupPromosQuery.error ? (
                     <tr>
-                      <td className="px-4 py-10 text-center text-rose-700" colSpan={7}>
+                      <td className="px-4 py-10 text-center text-rose-700" colSpan={6}>
                         שגיאה בטעינת מבצעי קבוצות: {String(groupPromosQuery.error?.message || "")}
                       </td>
                     </tr>
@@ -970,24 +992,26 @@ export function PromotionsPage({
                             <div className="line-clamp-3">{groupProductsText(group)}</div>
                             <div className="mt-1 text-xs text-slate-500">{group.products?.length || 0} מוצרים</div>
                           </td>
-                          <td className="px-4 py-3 font-bold text-slate-900">{groupValueText(group)}</td>
-                          <td className="px-4 py-3 text-slate-700">{groupMaxText(group)}</td>
+                          <td className="px-4 py-3 font-bold text-slate-900">
+                            <div>{groupValueText(group)}</div>
+                            <LimitPill>{groupMaxText(group)}</LimitPill>
+                          </td>
                           <td className="px-4 py-3 text-slate-700">
                             <div>מתחיל: {dates.start}</div>
-                            <div className="mt-1 text-xs text-slate-500">מסתיים: {dates.end}</div>
+                            {dates.end ? <div className="mt-1 text-xs text-slate-500">עד: {dates.end}</div> : null}
                           </td>
                           <td className="px-3 py-3"><span className={cn("pill", s.className)}>{s.label}</span></td>
-                          <td className="px-3 py-3">
-                            <div className="flex flex-col items-stretch justify-end gap-2 whitespace-nowrap">
+                          <td className="w-28 px-3 py-3 text-center">
+                            <div className="flex flex-col items-stretch justify-center gap-2 whitespace-nowrap">
                               <button
-                                className="btn-secondary"
+                                className="btn-secondary px-3 py-2 text-xs"
                                 disabled={busy}
                                 onClick={() => setGroupModal({ open: true, mode: "edit", promotion: group })}
                               >
                                 עריכה
                               </button>
                               <button
-                                className="btn-outline"
+                                className="btn-outline px-3 py-2 text-xs"
                                 disabled={busy}
                                 onClick={() => setConfirmGroupDel({ open: true, promotion: group })}
                               >
@@ -1000,7 +1024,7 @@ export function PromotionsPage({
                     })
                   ) : (
                     <tr>
-                      <td className="px-4 py-10 text-center text-slate-500" colSpan={7}>
+                      <td className="px-4 py-10 text-center text-slate-500" colSpan={6}>
                         אין מבצעי קבוצות שמתאימים לסינון הנוכחי.
                       </td>
                     </tr>
@@ -1029,7 +1053,7 @@ export function PromotionsPage({
                   <th className="px-4 py-3">הטבה</th>
                   <th className="px-4 py-3">תוקף</th>
                   <th className="px-3 py-3">סטטוס</th>
-                  <th className="px-3 py-3">פעולות</th>
+                  <th className="w-28 px-3 py-3 text-center">פעולות</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -1064,29 +1088,25 @@ export function PromotionsPage({
 
                         <td className="px-4 py-3 font-bold text-slate-900">
                           <div>{cartRuleBenefitText(rule)}</div>
-                          {rule?.rule_type === "THRESHOLD_PRODUCT_FIXED_PRICE" && rule?.reward_max_qty ? (
-                            <div className="mt-2 inline-flex rounded-full bg-rose-50 px-2.5 py-1 text-xs font-extrabold text-rose-700">
-                              מקסימום {cartRuleMaxText(rule)} במבצע
-                            </div>
-                          ) : null}
+                          <LimitPill>{cartRuleMaxText(rule)}</LimitPill>
                         </td>
 
                         <td className="px-4 py-3 text-slate-700">
                           <div>מתחיל: {dates.start}</div>
-                          <div className="mt-1 text-xs text-slate-500">מסתיים: {dates.end}</div>
+                          {dates.end ? <div className="mt-1 text-xs text-slate-500">עד: {dates.end}</div> : null}
                         </td>
                         <td className="px-3 py-3"><span className={cn("pill", s.className)}>{s.label}</span></td>
-                        <td className="px-3 py-3">
-                          <div className="flex flex-col items-stretch justify-end gap-2 whitespace-nowrap">
+                        <td className="w-28 px-3 py-3 text-center">
+                          <div className="flex flex-col items-stretch justify-center gap-2 whitespace-nowrap">
                             <button
-                              className="btn-secondary"
+                              className="btn-secondary px-3 py-2 text-xs"
                               disabled={busy}
                               onClick={() => setCartModal({ open: true, mode: "edit", rule })}
                             >
                               עריכה
                             </button>
                             <button
-                              className="btn-outline"
+                              className="btn-outline px-3 py-2 text-xs"
                               disabled={busy}
                               onClick={() => setConfirmCartDel({ open: true, rule })}
                             >

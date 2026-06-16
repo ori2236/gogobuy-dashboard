@@ -105,7 +105,7 @@ export function CartPromotionModal({ open, mode, busy, rule, onCancel, onSave })
   const [startDate, setStartDate] = useState("");
   const [startTime, setStartTime] = useState("00:00");
   const [endDate, setEndDate] = useState("");
-  const [endTime, setEndTime] = useState("00:00");
+  const [endTime, setEndTime] = useState("23:59:59");
   const [fieldErrors, setFieldErrors] = useState({});
 
   const usesRewardProductSearch =
@@ -156,9 +156,9 @@ export function CartPromotionModal({ open, mode, busy, rule, onCancel, onSave })
       setPriority(rule.priority == null ? "100" : String(rule.priority));
       setIsActive(Boolean(rule.is_active));
       setStartDate(start.date || "");
-      setStartTime(start.time || "00:00");
+      setStartTime("00:00");
       setEndDate(end.date || "");
-      setEndTime(end.time || "00:00");
+      setEndTime("23:59:59");
     } else {
       setRuleType("DELIVERY_FEE_OVERRIDE");
       setTitle("");
@@ -175,7 +175,7 @@ export function CartPromotionModal({ open, mode, busy, rule, onCancel, onSave })
       setStartDate(todayDateLocal());
       setStartTime("00:00");
       setEndDate("");
-      setEndTime("00:00");
+      setEndTime("23:59:59");
     }
   }, [open, isEdit, rule]);
 
@@ -474,22 +474,12 @@ export function CartPromotionModal({ open, mode, busy, rule, onCancel, onSave })
                 </>
               ) : null}
 
-              <InputShell label="תאריך התחלה" error="" className="sm:col-span-2">
+              <InputShell label="תאריך התחלה" error="" className="sm:col-span-3">
                 <input
                   className="mt-2 w-full rounded-2xl bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-slate-200"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
                   type="date"
-                />
-              </InputShell>
-
-              <InputShell label="שעת התחלה" error="" className="sm:col-span-2">
-                <input
-                  className="mt-2 w-full rounded-2xl bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-slate-200 disabled:bg-slate-50 disabled:text-slate-400"
-                  value={startTime}
-                  disabled={!startDate}
-                  onChange={(e) => setStartTime(e.target.value || "00:00")}
-                  type="time"
                 />
               </InputShell>
 
@@ -499,16 +489,6 @@ export function CartPromotionModal({ open, mode, busy, rule, onCancel, onSave })
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
                   type="date"
-                />
-              </InputShell>
-
-              <InputShell label="שעת סיום" error="" className="sm:col-span-2">
-                <input
-                  className="mt-2 w-full rounded-2xl bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-slate-200 disabled:bg-slate-50 disabled:text-slate-400"
-                  value={endTime}
-                  disabled={!endDate}
-                  onChange={(e) => setEndTime(e.target.value || "00:00")}
-                  type="time"
                 />
               </InputShell>
 
