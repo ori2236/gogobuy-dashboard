@@ -1,8 +1,7 @@
 /* eslint-disable react-hooks/set-state-in-effect */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import {
   BadgePercent,
-  CalendarClock,
   Clock3,
   Gift,
   Plus,
@@ -45,22 +44,24 @@ const CART_RULE_LABELS = {
 };
 
 const SORT_OPTIONS = [
-  { value: "default:desc", label: "ברירת מחדל" },
-  { value: "start_at:desc", label: "תאריך התחלה - מהחדש לישן" },
-  { value: "start_at:asc", label: "תאריך התחלה - מהישן לחדש" },
-  { value: "end_at:desc", label: "תאריך סיום - מהמאוחר למוקדם" },
-  { value: "end_at:asc", label: "תאריך סיום - מהמוקדם למאוחר" },
-  { value: "kind:asc", label: "סוג מבצע - א׳ עד ת׳" },
-  { value: "kind:desc", label: "סוג מבצע - ת׳ עד א׳" },
+  { value: "default", label: "ברירת מחדל" },
+  { value: "start_at", label: "תאריך התחלה" },
+  { value: "end_at", label: "תאריך תפוגה" },
+  { value: "kind", label: "סוג מבצע" },
 ];
 
 const CART_SORT_OPTIONS = [
   { value: "default", label: "ברירת מחדל" },
   { value: "type", label: "סוג מבצע + סכום מינימלי" },
-  { value: "created_at:desc", label: "תאריך יצירה - מהחדש לישן" },
-  { value: "created_at:asc", label: "תאריך יצירה - מהישן לחדש" },
-  { value: "end_at:asc", label: "תאריך תפוגה - הקרוב קודם" },
-  { value: "end_at:desc", label: "תאריך תפוגה - הרחוק קודם" },
+  { value: "start_at", label: "תאריך התחלה" },
+  { value: "end_at", label: "תאריך תפוגה" },
+];
+
+const GROUP_SORT_OPTIONS = [
+  { value: "default", label: "ברירת מחדל" },
+  { value: "title", label: "שם מבצע" },
+  { value: "start_at", label: "תאריך התחלה" },
+  { value: "end_at", label: "תאריך תפוגה" },
 ];
 
 const ACTIVE_PROMO_TAB_CLASS = "bg-slate-950 text-white shadow-sm";
@@ -157,6 +158,13 @@ function cartRuleMaxText(rule) {
   return usageLimitText(rule.reward_max_qty);
 }
 
+function cartRuleRegularPriceText(rule) {
+  if (!rule?.reward_product_id) return "";
+  const price = Number(rule.reward_product_price);
+  if (!Number.isFinite(price) || price <= 0) return "";
+  return `מחיר רגיל ${fmtMoney(price)}`;
+}
+
 function cartRuleValueText(rule) {
   if (!rule) return "-";
   const threshold = fmtMoney(rule.threshold_amount);
@@ -184,26 +192,52 @@ function groupProductName(product) {
 
 function GroupProductsCell({ group }) {
   const products = Array.isArray(group?.products) ? group.products : [];
-  if (!products.length) return <span className="text-slate-400">-</span>;
+  if (!products.length) return null;
 
   const shown = products.slice(0, 2).map(groupProductName);
   const moreCount = Math.max(0, products.length - shown.length);
 
   return (
-    <div>
-      <div className="leading-6 text-slate-800">
-        {shown.join(", ")}
-        {moreCount > 0 ? (
-          <>
-            {" "}
-            <span className="font-extrabold text-slate-950">ועוד {moreCount}</span>
-          </>
-        ) : null}
-      </div>
-      <div className="mt-1 text-xs font-extrabold text-slate-500">
-        {products.length} מוצרים
-      </div>
+    <div className="leading-6 text-slate-800">
+      {shown.join(", ")}
+      {moreCount > 0 ? (
+        <>
+          {" "}
+          <span className="font-extrabold text-slate-950">ועוד {moreCount}</span>
+        </>
+      ) : null}
     </div>
+  );
+}
+
+function groupProductCountText(group) {
+  const products = Array.isArray(group?.products) ? group.products : [];
+  if (!products.length) return "";
+  return `${products.length} מוצרים`;
+}
+
+function GroupProductsExpandedRow({ group }) {
+  const products = Array.isArray(group?.products) ? group.products : [];
+  if (!products.length) return null;
+
+  return (
+    <tr className="bg-purple-50/40">
+      <td colSpan={5} className="px-4 pb-4 pt-0">
+        <div className="rounded-2xl border border-purple-100 bg-white p-4 text-right shadow-sm" dir="rtl">
+          <div className="mb-3 text-xs font-extrabold text-slate-600">כל המוצרים בקבוצה</div>
+          <div className="flex flex-wrap gap-2">
+            {products.map((product) => (
+              <span
+                key={product.id || groupProductName(product)}
+                className="rounded-full bg-purple-50 px-3 py-1.5 text-xs font-bold text-purple-900"
+              >
+                {groupProductName(product)}
+              </span>
+            ))}
+          </div>
+        </div>
+      </td>
+    </tr>
   );
 }
 
@@ -222,18 +256,22 @@ function cartRuleIcon(ruleType) {
   return <ShoppingCart className="h-4 w-4 text-amber-700" />;
 }
 
+function rowModeKey(type, id) {
+  return `${type}:${id}`;
+}
+
 function statusInfo(promo) {
   if (promo?.is_expired || promo?.status === "expired") {
     return {
       label: "פג תוקף",
-      className: "bg-rose-50 text-rose-700",
+      className: "bg-rose-500/90 text-white shadow-sm shadow-rose-900/10",
     };
   }
 
   if (promo?.is_upcoming || promo?.status === "upcoming") {
     return {
       label: "עתידי",
-      className: "bg-blue-50 text-blue-700",
+      className: "bg-blue-500/90 text-white shadow-sm shadow-blue-900/10",
     };
   }
 
@@ -242,13 +280,13 @@ function statusInfo(promo) {
   if (currentlyActive || promo?.status === "active") {
     return {
       label: "פעיל",
-      className: "bg-emerald-50 text-emerald-700",
+      className: "bg-emerald-500/90 text-white shadow-sm shadow-emerald-900/10",
     };
   }
 
   return {
     label: "לא פעיל",
-    className: "bg-slate-100 text-slate-600",
+    className: "bg-slate-400/90 text-white shadow-sm shadow-slate-900/10",
   };
 }
 function formatDateOnly(value) {
@@ -263,7 +301,7 @@ function formatDateOnly(value) {
 
 function dateRangeText(promo) {
   return {
-    start: promo?.start_at ? formatDateOnly(promo.start_at) : "-",
+    start: promo?.start_at ? formatDateOnly(promo.start_at) : "",
     end: promo?.end_at ? formatDateOnly(promo.end_at) : "",
   };
 }
@@ -284,10 +322,112 @@ function LimitPill({ children }) {
   );
 }
 
-function parseSortValue(sortValue) {
-  const [sort_by = "default", sort_dir = "desc"] = String(sortValue || "default:desc").split(":");
-  return { sort_by, sort_dir };
+function StatusOrValidityHeader({ value = "status", onChange }) {
+  return (
+    <div className="inline-flex items-center overflow-hidden rounded-full border border-slate-200 bg-white p-0.5 text-[11px] font-extrabold text-slate-500 shadow-sm" dir="rtl">
+      <button
+        type="button"
+        className={cn(
+          "rounded-full px-2.5 py-1 transition",
+          value === "status" ? "bg-slate-200 text-slate-950 shadow-sm" : "hover:bg-slate-100 hover:text-slate-800",
+        )}
+        onClick={(e) => {
+          e.stopPropagation();
+          onChange?.("status");
+        }}
+      >
+        סטטוס
+      </button>
+      <button
+        type="button"
+        className={cn(
+          "rounded-full px-2.5 py-1 transition",
+          value === "validity" ? "bg-slate-200 text-slate-950 shadow-sm" : "hover:bg-slate-100 hover:text-slate-800",
+        )}
+        onClick={(e) => {
+          e.stopPropagation();
+          onChange?.("validity");
+        }}
+      >
+        תוקף
+      </button>
+    </div>
+  );
 }
+
+function StatusOrValidityCell({ item, mode, onToggle }) {
+  const dates = dateRangeText(item);
+
+  if (mode === "validity") {
+    return (
+      <button
+        type="button"
+        className="inline-flex min-w-[7.8rem] flex-col items-center justify-center px-1 py-1 text-xs font-semibold leading-6 text-slate-500 transition hover:text-slate-700 focus:outline-none"
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggle?.();
+        }}
+        title="לחיצה מחזירה לתצוגת סטטוס"
+      >
+        {dates.start ? <span className="whitespace-nowrap">מ {dates.start}</span> : null}
+        {dates.end ? <span className="whitespace-nowrap">עד {dates.end}</span> : null}
+        {!dates.start && !dates.end ? <span className="whitespace-nowrap">ללא תוקף</span> : null}
+      </button>
+    );
+  }
+
+  const s = statusInfo(item);
+  return (
+    <button
+      type="button"
+      className={cn("inline-flex min-w-[4.6rem] justify-center whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-normal leading-5 transition hover:brightness-95", s.className)}
+      onClick={(e) => {
+        e.stopPropagation();
+        onToggle?.();
+      }}
+      title="לחיצה מציגה את תוקף המבצע"
+    >
+      {s.label}
+    </button>
+  );
+}
+
+function SortControl({ value, options, onValueChange }) {
+  return (
+    <div dir="rtl">
+      <div className="text-xs font-bold text-slate-700">מיון</div>
+      <select
+        className="mt-2 w-full rounded-2xl bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-slate-200"
+        value={value}
+        onChange={(e) => onValueChange?.(e.target.value)}
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function SortDirectionChip({ disabled, direction, onClick }) {
+  if (disabled) return null;
+  return (
+    <button
+      type="button"
+      className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-sm font-extrabold text-slate-700 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-200"
+      onClick={onClick}
+      title={direction === "asc" ? "סדר עולה" : "סדר יורד"}
+      dir="rtl"
+      aria-label={direction === "asc" ? "סדר עולה" : "סדר יורד"}
+    >
+      {direction === "asc" ? "↑" : "↓"}
+    </button>
+  );
+}
+
+const ACTION_BUTTON_CLASS = "w-14 px-1.5 py-1.5 text-sm";
 
 function SummaryCard({ active, className, icon, label, value, onClick }) {
   return (
@@ -315,12 +455,19 @@ export function PromotionsPage({
   onFetchingChange,
 }) {
   const [status, setStatus] = useState("all");
+  const [globalDisplayMode, setGlobalDisplayMode] = useState("status");
+  const [rowDisplayModes, setRowDisplayModes] = useState({});
+  const [expandedGroupIds, setExpandedGroupIds] = useState(() => new Set());
   const [q, setQ] = useState("");
   const [promoTab, setPromoTab] = useState("products");
   const [category, setCategory] = useState("");
   const [subCategory, setSubCategory] = useState("");
-  const [sortValue, setSortValue] = useState("default:desc");
-  const [cartSortValue, setCartSortValue] = useState("default");
+  const [sortField, setSortField] = useState("default");
+  const [sortDir, setSortDir] = useState("desc");
+  const [cartSortField, setCartSortField] = useState("default");
+  const [cartSortDir, setCartSortDir] = useState("desc");
+  const [groupSortField, setGroupSortField] = useState("default");
+  const [groupSortDir, setGroupSortDir] = useState("desc");
   const [modal, setModal] = useState({
     open: false,
     mode: "create",
@@ -341,10 +488,8 @@ export function PromotionsPage({
   const [confirmGroupDel, setConfirmGroupDel] = useState({ open: false, promotion: null });
 
   const qDebounced = useDebouncedValue(q, 300);
-  const { sort_by, sort_dir } = useMemo(
-    () => parseSortValue(sortValue),
-    [sortValue],
-  );
+  const sort_by = sortField;
+  const sort_dir = sortDir;
 
   const catQuery = useStockCategories();
   const categoriesMap = useMemo(
@@ -413,7 +558,7 @@ export function PromotionsPage({
     deleteGroupMut.isPending;
   const promotions = promosQuery.data?.promotions || [];
   const cartRules = cartRulesQuery.data?.cart_promotion_rules || [];
-  const groupPromotions = groupPromosQuery.data?.product_group_promotions || [];
+  const rawGroupPromotions = groupPromosQuery.data?.product_group_promotions || [];
   const counts = promosQuery.data?.counts || { total: 0, active: 0, inactive: 0 };
   const cartCounts = cartRulesQuery.data?.counts || { total: 0, active: 0, inactive: 0 };
   const groupCounts = groupPromosQuery.data?.counts || { total: 0, active: 0, inactive: 0 };
@@ -455,40 +600,62 @@ export function PromotionsPage({
       return Number.isFinite(t) ? t : fallback;
     }
 
-    if (cartSortValue === "type") {
+    const dir = cartSortDir === "asc" ? 1 : -1;
+
+    if (cartSortField === "type") {
       rows.sort((a, b) => {
         const typeCmp = String(CART_RULE_LABELS[a.rule_type] || a.rule_type || "").localeCompare(
           String(CART_RULE_LABELS[b.rule_type] || b.rule_type || ""),
           "he",
         );
-        if (typeCmp !== 0) return typeCmp;
-        return num(a.threshold_amount) - num(b.threshold_amount);
+        if (typeCmp !== 0) return typeCmp * dir;
+        return (num(a.threshold_amount) - num(b.threshold_amount)) * dir;
       });
       return rows;
     }
 
-    if (cartSortValue === "created_at:asc") {
-      rows.sort((a, b) => timeValue(a.created_at, 0) - timeValue(b.created_at, 0));
+    if (cartSortField === "start_at") {
+      rows.sort((a, b) => (timeValue(a.start_at, 0) - timeValue(b.start_at, 0)) * dir);
       return rows;
     }
 
-    if (cartSortValue === "created_at:desc") {
-      rows.sort((a, b) => timeValue(b.created_at, 0) - timeValue(a.created_at, 0));
-      return rows;
-    }
-
-    if (cartSortValue === "end_at:asc") {
-      rows.sort((a, b) => timeValue(a.end_at, Number.MAX_SAFE_INTEGER) - timeValue(b.end_at, Number.MAX_SAFE_INTEGER));
-      return rows;
-    }
-
-    if (cartSortValue === "end_at:desc") {
-      rows.sort((a, b) => timeValue(b.end_at, 0) - timeValue(a.end_at, 0));
+    if (cartSortField === "end_at") {
+      const emptyFallback = cartSortDir === "asc" ? Number.MAX_SAFE_INTEGER : 0;
+      rows.sort((a, b) => (timeValue(a.end_at, emptyFallback) - timeValue(b.end_at, emptyFallback)) * dir);
       return rows;
     }
 
     return rows;
-  }, [cartRules, cartSortValue]);
+  }, [cartRules, cartSortField, cartSortDir]);
+
+  const groupPromotions = useMemo(() => {
+    const rows = Array.isArray(rawGroupPromotions) ? rawGroupPromotions.slice() : [];
+    const dir = groupSortDir === "asc" ? 1 : -1;
+
+    function timeValue(v, fallback) {
+      if (!v) return fallback;
+      const t = new Date(v).getTime();
+      return Number.isFinite(t) ? t : fallback;
+    }
+
+    if (groupSortField === "title") {
+      rows.sort((a, b) => String(a.title || "").localeCompare(String(b.title || ""), "he") * dir);
+      return rows;
+    }
+
+    if (groupSortField === "start_at") {
+      rows.sort((a, b) => (timeValue(a.start_at, 0) - timeValue(b.start_at, 0)) * dir);
+      return rows;
+    }
+
+    if (groupSortField === "end_at") {
+      const emptyFallback = groupSortDir === "asc" ? Number.MAX_SAFE_INTEGER : 0;
+      rows.sort((a, b) => (timeValue(a.end_at, emptyFallback) - timeValue(b.end_at, emptyFallback)) * dir);
+      return rows;
+    }
+
+    return rows;
+  }, [rawGroupPromotions, groupSortField, groupSortDir]);
 
   const isCartTab = promoTab === "cart";
   const isGroupTab = promoTab === "groups";
@@ -498,6 +665,49 @@ export function PromotionsPage({
     : isGroupTab
       ? groupPromotions.length
       : promotions.length;
+  const currentSortField = isCartTab ? cartSortField : isGroupTab ? groupSortField : sortField;
+  const currentSortDir = isCartTab ? cartSortDir : isGroupTab ? groupSortDir : sortDir;
+
+  function toggleCurrentSortDirection() {
+    if (isCartTab) {
+      setCartSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
+      return;
+    }
+    if (isGroupTab) {
+      setGroupSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
+  }
+
+  function toggleGroupExpanded(groupId) {
+    const id = Number(groupId);
+    if (!Number.isFinite(id)) return;
+    setExpandedGroupIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function setGlobalStatusValidityMode(mode) {
+    setGlobalDisplayMode(mode);
+    setRowDisplayModes({});
+  }
+
+  function rowDisplayMode(type, id) {
+    return rowDisplayModes[rowModeKey(type, id)] || globalDisplayMode;
+  }
+
+  function toggleRowDisplayMode(type, id) {
+    const key = rowModeKey(type, id);
+    const current = rowDisplayMode(type, id);
+    setRowDisplayModes((prev) => ({
+      ...prev,
+      [key]: current === "validity" ? "status" : "validity",
+    }));
+  }
 
   async function onSavePromotion(payload) {
     try {
@@ -762,40 +972,36 @@ export function PromotionsPage({
                 </div>
 
                 <div className="sm:col-span-3">
-                  <div className="text-xs font-bold text-slate-700">מיון</div>
-                  <select
-                    className="mt-2 w-full rounded-2xl bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-slate-200"
-                    value={sortValue}
-                    onChange={(e) => setSortValue(e.target.value)}
-                  >
-                    {SORT_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
+                  <SortControl
+                    value={sortField}
+                    options={SORT_OPTIONS}
+                    onValueChange={setSortField}
+                  />
                 </div>
               </>
             ) : null}
 
             {isCartTab ? (
               <div className="sm:col-span-4">
-                <div className="text-xs font-bold text-slate-700">מיון</div>
-                <select
-                  className="mt-2 w-full rounded-2xl bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-slate-200"
-                  value={cartSortValue}
-                  onChange={(e) => setCartSortValue(e.target.value)}
-                >
-                  {CART_SORT_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
+                <SortControl
+                  value={cartSortField}
+                  options={CART_SORT_OPTIONS}
+                  onValueChange={setCartSortField}
+                />
               </div>
             ) : null}
 
-            <div className={isCartTab ? "sm:col-span-8" : isGroupTab ? "sm:col-span-12" : "sm:col-span-3"}>
+            {isGroupTab ? (
+              <div className="sm:col-span-4">
+                <SortControl
+                  value={groupSortField}
+                  options={GROUP_SORT_OPTIONS}
+                  onValueChange={setGroupSortField}
+                />
+              </div>
+            ) : null}
+
+            <div className={isCartTab ? "sm:col-span-8" : isGroupTab ? "sm:col-span-8" : "sm:col-span-3"}>
               <div className="text-xs font-bold text-slate-700">חיפוש</div>
               <div className="relative mt-2">
                 <div className="pointer-events-none absolute inset-y-0 start-3 flex items-center text-slate-400">
@@ -805,7 +1011,7 @@ export function PromotionsPage({
                   className="w-full rounded-2xl bg-white ps-10 pe-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-slate-200"
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
-                  placeholder={isCartTab ? "שם מבצע סל / תיאור" : isGroupTab ? "שם מבצע קבוצתי / מוצר בקבוצה / תיאור" : "שם מוצר / תיאור / שם באנגלית"}
+                  placeholder={isCartTab ? "סוג מבצע / מוצר / מתנה / תיאור" : isGroupTab ? "שם מבצע קבוצתי / מוצר בקבוצה / תיאור" : "שם מוצר / תיאור / שם באנגלית"}
                 />
               </div>
             </div>
@@ -824,6 +1030,11 @@ export function PromotionsPage({
           <span className="pill bg-amber-50 text-amber-700">
             {activeFilterLabel}: {currentFilteredCount}
           </span>
+          <SortDirectionChip
+            disabled={currentSortField === "default"}
+            direction={currentSortDir}
+            onClick={toggleCurrentSortDirection}
+          />
           {isProductsTab && category ? (
             <span className="pill bg-slate-100 text-slate-700">
               קטגוריה: {category}
@@ -838,89 +1049,74 @@ export function PromotionsPage({
 
         {isProductsTab ? (
           <div className="mt-3 overflow-hidden rounded-2xl border border-slate-100 bg-white">
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-right text-sm">
+          <div className="overflow-hidden">
+            <table className="w-full table-fixed text-right text-sm">
               <thead className="bg-slate-50 text-xs font-extrabold text-slate-700">
                 <tr>
-                  <th className="min-w-[260px] px-4 py-3">מוצר</th>
-                  <th className="px-4 py-3 text-center">קטגוריה</th>
-                  <th className="px-4 py-3 whitespace-nowrap">מחיר מוצר</th>
-                  <th className="px-4 py-3 whitespace-nowrap">מבצע</th>
-                  <th className="px-4 py-3">תיאור</th>
-                  <th className="px-4 py-3">תוקף</th>
-                  <th className="px-3 py-3 text-center">סטטוס</th>
-                  <th className="w-24 px-2 py-3 text-center">פעולות</th>
+                  <th className="w-[25%] px-3 py-3">מוצר</th>
+                  <th className="w-[15%] px-3 py-3 text-center">קטגוריה</th>
+                  <th className="w-[9%] px-2 py-3 text-center whitespace-nowrap">מחיר מוצר</th>
+                  <th className="w-[12%] px-2 py-3 text-center whitespace-nowrap">מבצע</th>
+                  <th className="w-[16%] px-3 py-3 text-center">תיאור</th>
+                  <th className="w-[14%] px-2 py-3 text-center"><StatusOrValidityHeader value={globalDisplayMode} onChange={setGlobalStatusValidityMode} /></th>
+                  <th className="w-[9%] px-2 py-3 text-center">פעולות</th>
                 </tr>
               </thead>
 
               <tbody className="divide-y divide-slate-100">
                 {promosQuery.isLoading ? (
                   <tr>
-                    <td className="px-4 py-10 text-center text-slate-500" colSpan={8}>
+                    <td className="px-4 py-10 text-center text-slate-500" colSpan={7}>
                       טוען מבצעים…
                     </td>
                   </tr>
                 ) : promosQuery.error ? (
                   <tr>
-                    <td className="px-4 py-10 text-center text-rose-700" colSpan={8}>
+                    <td className="px-4 py-10 text-center text-rose-700" colSpan={7}>
                       שגיאה בטעינת מבצעים: {String(promosQuery.error?.message || "")}
                     </td>
                   </tr>
                 ) : promotions.length ? (
                   promotions.map((promo) => {
-                    const s = statusInfo(promo);
-                    const dates = dateRangeText(promo);
                     return (
                       <tr key={promo.id} className="hover:bg-slate-50">
-                        <td className="min-w-[260px] px-4 py-3 text-slate-900">
-                          <div className="font-bold leading-6">{promo.product_name || `#${promo.product_id}`}</div>
-                          <div className="mt-1 text-xs leading-5 text-slate-500" dir="ltr">
-                            {promo.product_display_name_en || "-"}
+                        <td className="w-[25%] px-3 py-3 text-slate-900">
+                          <div className="break-words font-bold leading-6">{promo.product_name || `#${promo.product_id}`}</div>
+                          <div className="mt-1 break-words text-xs leading-5 text-slate-500" dir="ltr">
+                            {promo.product_display_name_en || ""}
                           </div>
                         </td>
 
-                        <td className="px-4 py-3 text-center text-slate-700">
-                          <div>{promo.product_category || "-"}</div>
+                        <td className="w-[15%] px-3 py-3 text-center text-slate-700">
+                          <div>{promo.product_category || ""}</div>
                           <div className="mt-1 text-xs text-slate-500">
-                            {promo.product_sub_category || "-"}
+                            {promo.product_sub_category || ""}
                           </div>
                         </td>
 
-                        <td className="px-4 py-3 whitespace-nowrap font-semibold text-slate-800">
+                        <td className="w-[9%] px-2 py-3 text-center whitespace-nowrap font-semibold text-slate-800">
                           {productPriceText(promo)}
                         </td>
 
-                        <td className="px-4 py-3 font-bold text-slate-900">
+                        <td className="w-[12%] px-2 py-3 text-center font-bold text-slate-900">
                           <div className="whitespace-nowrap">{promoValueText(promo)}</div>
                           <LimitPill>{promoMaxText(promo)}</LimitPill>
                         </td>
 
-                        <td className="max-w-[320px] px-4 py-3 text-slate-700">
-                          <div className="line-clamp-3">
-                            {promo.description || "-"}
+                        <td className="w-[16%] px-3 py-3 text-center text-slate-700">
+                          <div className="line-clamp-3 break-words">
+                            {promo.description || ""}
                           </div>
                         </td>
 
-                        <td className="px-4 py-3 text-slate-700">
-                          <div className="flex items-start justify-end gap-2">
-                            <CalendarClock className="mt-0.5 h-4 w-4 text-slate-400" />
-                            <div>
-                              <div>מתחיל: {dates.start}</div>
-                              {dates.end ? (
-                                <div className="mt-1 text-xs text-slate-500">עד: {dates.end}</div>
-                              ) : null}
-                            </div>
-                          </div>
+                        <td className="w-[14%] px-2 py-3 text-center">
+                          <StatusOrValidityCell item={promo} mode={rowDisplayMode("product", promo.id)} onToggle={() => toggleRowDisplayMode("product", promo.id)} />
                         </td>
 
-                        <td className="px-3 py-3">
-                          <span className={cn("pill whitespace-nowrap", s.className)}>{s.label}</span>
-                        </td>
-
-                        <td className="w-24 px-2 py-3 text-center">
+                        <td className="w-[9%] px-2 py-3 text-center">
                           <div className="flex flex-col items-center justify-center gap-2 whitespace-nowrap">
                             <button
-                              className="btn-secondary w-20 px-2 py-1.5 text-[13px]"
+                              className={cn("btn-secondary", ACTION_BUTTON_CLASS)}
                               disabled={busy}
                               onClick={() =>
                                 setModal({
@@ -933,7 +1129,7 @@ export function PromotionsPage({
                               עריכה
                             </button>
                             <button
-                              className="btn-outline w-20 px-2 py-1.5 text-[13px]"
+                              className={cn("btn-outline", ACTION_BUTTON_CLASS)}
                               disabled={busy}
                               onClick={() =>
                                 setConfirmDel({ open: true, promotion: promo })
@@ -948,7 +1144,7 @@ export function PromotionsPage({
                   })
                 ) : (
                   <tr>
-                    <td className="px-4 py-10 text-center text-slate-500" colSpan={8}>
+                    <td className="px-4 py-10 text-center text-slate-500" colSpan={7}>
                       אין מבצעים שמתאימים לסינון הנוכחי.
                     </td>
                   </tr>
@@ -967,77 +1163,86 @@ export function PromotionsPage({
                 מבצעים שמאפשרים לשלב כמה מוצרים שונים מאותה קבוצה
               </div>
             </div>
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-right text-sm">
+            <div className="overflow-hidden">
+              <table className="w-full table-fixed text-right text-sm">
                 <thead className="bg-white text-xs font-extrabold text-slate-700">
                   <tr>
-                    <th className="px-4 py-3">שם המבצע</th>
-                    <th className="px-4 py-3">מוצרים בקבוצה</th>
-                    <th className="px-4 py-3 whitespace-nowrap">מבצע</th>
-                    <th className="px-4 py-3">תוקף</th>
-                    <th className="px-3 py-3 text-center">סטטוס</th>
-                    <th className="w-24 px-2 py-3 text-center">פעולות</th>
+                    <th className="w-[20%] px-3 py-3">שם המבצע</th>
+                    <th className="w-[38%] px-3 py-3">מוצרים בקבוצה</th>
+                    <th className="w-[17%] px-2 py-3 text-center whitespace-nowrap">מבצע</th>
+                    <th className="w-[14%] px-2 py-3 text-center"><StatusOrValidityHeader value={globalDisplayMode} onChange={setGlobalStatusValidityMode} /></th>
+                    <th className="w-[11%] px-2 py-3 text-center">פעולות</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {groupPromosQuery.isLoading ? (
                     <tr>
-                      <td className="px-4 py-10 text-center text-slate-500" colSpan={6}>טוען מבצעי קבוצות…</td>
+                      <td className="px-4 py-10 text-center text-slate-500" colSpan={5}>טוען מבצעי קבוצות…</td>
                     </tr>
                   ) : groupPromosQuery.error ? (
                     <tr>
-                      <td className="px-4 py-10 text-center text-rose-700" colSpan={6}>
+                      <td className="px-4 py-10 text-center text-rose-700" colSpan={5}>
                         שגיאה בטעינת מבצעי קבוצות: {String(groupPromosQuery.error?.message || "")}
                       </td>
                     </tr>
                   ) : groupPromotions.length ? (
                     groupPromotions.map((group) => {
-                      const s = statusInfo(group);
-                      const dates = dateRangeText(group);
+                      const isExpanded = expandedGroupIds.has(Number(group.id));
+                      const countText = groupProductCountText(group);
                       return (
-                        <tr key={group.id} className="hover:bg-slate-50">
-                          <td className="px-4 py-3 text-slate-900">
-                            <div className="font-bold">{group.title || `#${group.id}`}</div>
-                            {group.description ? (
-                              <div className="mt-1 line-clamp-2 text-xs text-slate-500">{group.description}</div>
-                            ) : null}
-                          </td>
-                          <td className="max-w-[420px] px-4 py-3 text-slate-700">
-                            <GroupProductsCell group={group} />
-                          </td>
-                          <td className="px-4 py-3 font-bold text-slate-900">
-                            <div className="whitespace-nowrap">{groupValueText(group)}</div>
-                            <LimitPill>{groupMaxText(group)}</LimitPill>
-                          </td>
-                          <td className="px-4 py-3 text-slate-700">
-                            <div>מתחיל: {dates.start}</div>
-                            {dates.end ? <div className="mt-1 text-xs text-slate-500">עד: {dates.end}</div> : null}
-                          </td>
-                          <td className="px-3 py-3"><span className={cn("pill whitespace-nowrap", s.className)}>{s.label}</span></td>
-                          <td className="w-24 px-2 py-3 text-center">
-                            <div className="flex flex-col items-center justify-center gap-2 whitespace-nowrap">
-                              <button
-                                className="btn-secondary w-20 px-2 py-1.5 text-[13px]"
-                                disabled={busy}
-                                onClick={() => setGroupModal({ open: true, mode: "edit", promotion: group })}
-                              >
-                                עריכה
-                              </button>
-                              <button
-                                className="btn-outline w-20 px-2 py-1.5 text-[13px]"
-                                disabled={busy}
-                                onClick={() => setConfirmGroupDel({ open: true, promotion: group })}
-                              >
-                                מחיקה
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
+                        <Fragment key={group.id}>
+                          <tr className="cursor-pointer hover:bg-slate-50" onClick={() => toggleGroupExpanded(group.id)}>
+                            <td className="w-[20%] px-3 py-3 text-slate-900">
+                              <div className="break-words font-bold">{group.emoji || "🏷️"} {group.title || `#${group.id}`}</div>
+                              {countText ? (
+                                <div className="mt-1 text-xs font-extrabold text-slate-500">{countText}</div>
+                              ) : null}
+                              {group.description ? (
+                                <div className="mt-1 line-clamp-2 break-words text-xs text-slate-500">{group.description}</div>
+                              ) : null}
+                            </td>
+                            <td className="w-[38%] px-3 py-3 text-slate-700">
+                              <GroupProductsCell group={group} />
+                            </td>
+                            <td className="w-[17%] px-2 py-3 text-center font-bold text-slate-900">
+                              <div className="whitespace-nowrap">{groupValueText(group)}</div>
+                              <LimitPill>{groupMaxText(group)}</LimitPill>
+                            </td>
+                            <td className="w-[14%] px-2 py-3 text-center">
+                              <StatusOrValidityCell item={group} mode={rowDisplayMode("group", group.id)} onToggle={() => toggleRowDisplayMode("group", group.id)} />
+                            </td>
+                            <td className="w-[11%] px-2 py-3 text-center">
+                              <div className="flex flex-col items-center justify-center gap-2 whitespace-nowrap">
+                                <button
+                                  className={cn("btn-secondary", ACTION_BUTTON_CLASS)}
+                                  disabled={busy}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setGroupModal({ open: true, mode: "edit", promotion: group });
+                                  }}
+                                >
+                                  עריכה
+                                </button>
+                                <button
+                                  className={cn("btn-outline", ACTION_BUTTON_CLASS)}
+                                  disabled={busy}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setConfirmGroupDel({ open: true, promotion: group });
+                                  }}
+                                >
+                                  מחיקה
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                          {isExpanded ? <GroupProductsExpandedRow group={group} /> : null}
+                        </Fragment>
                       );
                     })
                   ) : (
                     <tr>
-                      <td className="px-4 py-10 text-center text-slate-500" colSpan={6}>
+                      <td className="px-4 py-10 text-center text-slate-500" colSpan={5}>
                         אין מבצעי קבוצות שמתאימים לסינון הנוכחי.
                       </td>
                     </tr>
@@ -1056,70 +1261,62 @@ export function PromotionsPage({
               מבצעים לפי סכום הזמנה: משלוח, מתנה, או מחיר מיוחד למוצר.
             </div>
           </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-right text-sm">
+          <div className="overflow-hidden">
+            <table className="w-full table-fixed text-right text-sm">
               <thead className="bg-white text-xs font-extrabold text-slate-700">
                 <tr>
-                  <th className="px-4 py-3">סוג</th>
-                  <th className="px-4 py-3">שם המבצע</th>
-                  <th className="px-4 py-3">סכום מינימלי</th>
-                  <th className="px-4 py-3">הטבה</th>
-                  <th className="px-4 py-3">תוקף</th>
-                  <th className="px-3 py-3 text-center">סטטוס</th>
-                  <th className="w-24 px-2 py-3 text-center">פעולות</th>
+                  <th className="w-[24%] px-3 py-3">סוג</th>
+                  <th className="w-[18%] px-3 py-3 text-center">סכום מינימלי</th>
+                  <th className="w-[28%] px-3 py-3 text-center">הטבה</th>
+                  <th className="w-[16%] px-2 py-3 text-center"><StatusOrValidityHeader value={globalDisplayMode} onChange={setGlobalStatusValidityMode} /></th>
+                  <th className="w-[14%] px-2 py-3 text-center">פעולות</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {cartRulesQuery.isLoading ? (
                   <tr>
-                    <td className="px-4 py-10 text-center text-slate-500" colSpan={7}>טוען מבצעי סל…</td>
+                    <td className="px-4 py-10 text-center text-slate-500" colSpan={5}>טוען מבצעי סל…</td>
                   </tr>
                 ) : cartRulesQuery.error ? (
                   <tr>
-                    <td className="px-4 py-10 text-center text-rose-700" colSpan={7}>
+                    <td className="px-4 py-10 text-center text-rose-700" colSpan={5}>
                       שגיאה בטעינת מבצעי סל: {String(cartRulesQuery.error?.message || "")}
                     </td>
                   </tr>
                 ) : sortedCartRules.length ? (
                   sortedCartRules.map((rule) => {
-                    const s = statusInfo(rule);
-                    const dates = dateRangeText(rule);
                     return (
                       <tr key={rule.id} className="hover:bg-slate-50">
-                        <td className="px-4 py-3 text-slate-700">
-                          <div className="flex items-center justify-end gap-2">
-                            <span>{CART_RULE_LABELS[rule.rule_type] || rule.rule_type}</span>
+                        <td className="w-[24%] px-3 py-3 text-slate-700">
+                          <div className="inline-flex max-w-full items-center justify-center gap-2 whitespace-nowrap" dir="rtl">
                             {cartRuleIcon(rule.rule_type)}
+                            <span>{CART_RULE_LABELS[rule.rule_type] || rule.rule_type}</span>
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-slate-900">
-                          <div className="font-bold">{rule.title || `#${rule.id}`}</div>
-                        </td>
-                        <td className="px-4 py-3 font-bold text-slate-900">
+                        <td className="w-[18%] px-3 py-3 text-center font-bold text-slate-900">
                           בקנייה מעל {cartRuleThresholdText(rule)}
                         </td>
 
-                        <td className="px-4 py-3 font-bold text-slate-900">
-                          <div>{cartRuleBenefitText(rule)}</div>
+                        <td className="w-[28%] px-3 py-3 text-center font-bold text-slate-900">
+                          <div className="break-words">{cartRuleBenefitText(rule)}</div>
                           <LimitPill>{cartRuleMaxText(rule)}</LimitPill>
+                          <LimitPill>{cartRuleRegularPriceText(rule)}</LimitPill>
                         </td>
 
-                        <td className="px-4 py-3 text-slate-700">
-                          <div>מתחיל: {dates.start}</div>
-                          {dates.end ? <div className="mt-1 text-xs text-slate-500">עד: {dates.end}</div> : null}
+                        <td className="w-[16%] px-2 py-3 text-center">
+                          <StatusOrValidityCell item={rule} mode={rowDisplayMode("cart", rule.id)} onToggle={() => toggleRowDisplayMode("cart", rule.id)} />
                         </td>
-                        <td className="px-3 py-3"><span className={cn("pill whitespace-nowrap", s.className)}>{s.label}</span></td>
-                        <td className="w-24 px-2 py-3 text-center">
+                        <td className="w-[14%] px-2 py-3 text-center">
                           <div className="flex flex-col items-center justify-center gap-2 whitespace-nowrap">
                             <button
-                              className="btn-secondary w-20 px-2 py-1.5 text-[13px]"
+                              className={cn("btn-secondary", ACTION_BUTTON_CLASS)}
                               disabled={busy}
                               onClick={() => setCartModal({ open: true, mode: "edit", rule })}
                             >
                               עריכה
                             </button>
                             <button
-                              className="btn-outline w-20 px-2 py-1.5 text-[13px]"
+                              className={cn("btn-outline", ACTION_BUTTON_CLASS)}
                               disabled={busy}
                               onClick={() => setConfirmCartDel({ open: true, rule })}
                             >
@@ -1132,7 +1329,7 @@ export function PromotionsPage({
                   })
                 ) : (
                   <tr>
-                    <td className="px-4 py-10 text-center text-slate-500" colSpan={7}>
+                    <td className="px-4 py-10 text-center text-slate-500" colSpan={5}>
                       אין מבצעי סל שמתאימים לסינון הנוכחי.
                     </td>
                   </tr>

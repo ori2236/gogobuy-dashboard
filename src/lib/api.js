@@ -441,6 +441,8 @@ function normalizeProductGroupPromotion(raw) {
     shop_id: Number(raw.shop_id ?? raw.shopId ?? getShopId()),
     title: raw.title ?? "",
     description: raw.description ?? null,
+    emoji: raw.emoji ?? raw.group_emoji ?? raw.groupEmoji ?? null,
+    emoji_custom: raw.emoji_custom ?? raw.emojiCustom ?? null,
     kind: raw.kind ?? "BUNDLE",
     bundle_buy_qty: toNumberOrNull(raw.bundle_buy_qty ?? raw.bundleBuyQty) ?? 2,
     bundle_pay_price: toNumberOrNull(raw.bundle_pay_price ?? raw.bundlePayPrice) ?? 0,
@@ -460,6 +462,7 @@ function normalizeProductGroupPromotion(raw) {
       price: toNumberOrNull(p.price),
       category: p.category ?? null,
       sub_category: p.sub_category ?? p.subCategory ?? null,
+      emoji: p.emoji ?? p.product_emoji ?? p.productEmoji ?? null,
     })).filter((p) => Number.isInteger(p.id) && p.id > 0),
     product_ids: Array.isArray(raw.product_ids ?? raw.productIds)
       ? (raw.product_ids ?? raw.productIds).map(Number).filter((x) => Number.isInteger(x) && x > 0)

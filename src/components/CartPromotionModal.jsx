@@ -90,7 +90,6 @@ function RuleIcon({ ruleType, className = "h-6 w-6" }) {
 export function CartPromotionModal({ open, mode, busy, rule, onCancel, onSave }) {
   const isEdit = mode === "edit";
   const [ruleType, setRuleType] = useState("DELIVERY_FEE_OVERRIDE");
-  const [title, setTitle] = useState("");
   const [thresholdAmount, setThresholdAmount] = useState("");
   const [deliveryFeeOverride, setDeliveryFeeOverride] = useState("");
   const [rewardProductId, setRewardProductId] = useState("");
@@ -139,7 +138,6 @@ export function CartPromotionModal({ open, mode, busy, rule, onCancel, onSave })
       const start = splitDateTime(rule.start_at);
       const end = splitDateTime(rule.end_at);
       setRuleType(rule.rule_type || "DELIVERY_FEE_OVERRIDE");
-      setTitle(rule.title || "");
       setThresholdAmount(rule.threshold_amount == null ? "" : String(rule.threshold_amount));
       setDeliveryFeeOverride(
         rule.delivery_fee_override == null ? "" : String(rule.delivery_fee_override),
@@ -159,7 +157,6 @@ export function CartPromotionModal({ open, mode, busy, rule, onCancel, onSave })
       setEndTime("23:59:59");
     } else {
       setRuleType("DELIVERY_FEE_OVERRIDE");
-      setTitle("");
       setThresholdAmount("");
       setDeliveryFeeOverride("");
       setRewardProductId("");
@@ -262,7 +259,7 @@ export function CartPromotionModal({ open, mode, busy, rule, onCancel, onSave })
 
     const payload = {
       rule_type: ruleType,
-      title: title.trim() || null,
+      title: null,
       description: null,
       threshold_amount: Number(thresholdAmount),
       threshold_base_mode: thresholdBaseMode,
@@ -339,15 +336,6 @@ export function CartPromotionModal({ open, mode, busy, rule, onCancel, onSave })
                 />
               </InputShell>
 
-
-              <InputShell label="שם המבצע" error="" className="sm:col-span-12">
-                <input
-                  className="mt-2 w-full rounded-2xl bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-slate-200"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="אם ריק, המערכת תיצור שם אוטומטי לפי סוג המבצע"
-                />
-              </InputShell>
 
               {ruleType === "DELIVERY_FEE_OVERRIDE" ? (
                 <InputShell label="דמי משלוח אחרי המבצע" error={fieldErrors.delivery_fee_override} className="sm:col-span-4">

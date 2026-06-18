@@ -225,8 +225,8 @@ export function PromotionModal({ open, mode, busy, promotion, onCancel, onSave }
 
     if (String(maxDiscountedQty || "").trim()) {
       const maxQty = numberValue(maxDiscountedQty);
-      if (maxQty === null || maxQty <= 0) {
-        errors.max_discounted_qty = "מקסימום במבצע חייב להיות גדול מ-0";
+      if (maxQty === null || maxQty <= 0 || !Number.isInteger(maxQty)) {
+        errors.max_discounted_qty = "מקסימום שימושים חייב להיות מספר שלם גדול מ-0";
       }
     }
 
@@ -433,16 +433,16 @@ export function PromotionModal({ open, mode, busy, promotion, onCancel, onSave }
                 </>
               ) : null}
 
-              <InputShell label="מקסימום יחידות במבצע" error={fieldErrors.max_discounted_qty} className="sm:col-span-4">
+              <InputShell label="מקסימום שימושים במבצע" error={fieldErrors.max_discounted_qty} className="sm:col-span-4">
                 <input
                   className="mt-2 w-full rounded-2xl bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-slate-200"
                   value={maxDiscountedQty}
                   onChange={(e) => setMaxDiscountedQty(e.target.value)}
-                  inputMode="decimal"
-                  placeholder="ריק = -"
+                  inputMode="numeric"
+                  placeholder="ריק = ללא הגבלה"
                 />
                 <div className="mt-1 text-xs text-slate-500">
-                  לדוגמה: 2 אומר שרק 2 יחידות ראשונות יקבלו את המבצע.
+                  במבצע 2 יח׳, 1 אומר פעם אחת בלבד; 2 אומר עד שני זוגות במבצע.
                 </div>
               </InputShell>
 
