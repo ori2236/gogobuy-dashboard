@@ -63,6 +63,7 @@ const EMPTY_INFO = {
   delivery_fee: 0,
   cart_empty_reminder_minutes: 5,
   idle_customer_reminder_minutes: 10,
+  market_day_promotions_enabled: false,
   stock_release_after_inactive_minutes: 30,
   max_order_quantity_per_product: 10,
   order_same_day_cutoff_time: DEFAULT_SAME_DAY_CUTOFF_TIME,
@@ -415,6 +416,7 @@ export function BusinessSettingsPage({ user, onNotify, onRegisterRefetch, onFetc
       cart_empty_reminder_minutes:
         Number(dataInfo.cart_empty_reminder_minutes || 0) < 5 ? 5 : dataInfo.cart_empty_reminder_minutes,
       idle_customer_reminder_minutes: Number(dataInfo.idle_customer_reminder_minutes ?? 10),
+      market_day_promotions_enabled: Boolean(dataInfo.market_day_promotions_enabled),
       stock_release_after_inactive_minutes:
         Number(dataInfo.stock_release_after_inactive_minutes || 0) < 30
           ? 30
@@ -738,6 +740,13 @@ export function BusinessSettingsPage({ user, onNotify, onRegisterRefetch, onFetc
                 checked={info.supports_pickup}
                 disabled={disabled}
                 onChange={(value) => changeInfo("supports_pickup", value)}
+              />
+              <SwitchRow
+                label="מבצעי יום השוק"
+                sublabel="מציג תת טאב ייעודי במבצעים ומאפשר לסמן מבצעים כיום השוק"
+                checked={info.market_day_promotions_enabled}
+                disabled={disabled}
+                onChange={(value) => changeInfo("market_day_promotions_enabled", value)}
               />
             </div>
           </Block>

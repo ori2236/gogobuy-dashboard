@@ -393,6 +393,8 @@ function DashboardApp({ user, onLogout }) {
           />
         ) : activeTab === "promotions" ? (
           <PromotionsPage
+            user={user}
+            shopInfo={businessSettings.data?.info}
             onNotify={(kind, msg) => notify(kind, msg)}
             onRegisterRefetch={registerPromotionsRefetch}
             onFetchingChange={setPromotionsIsFetching}

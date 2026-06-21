@@ -47,6 +47,19 @@ function todayDateLocal() {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+const MARKET_DAY_DESCRIPTION = "מבצע יום השוק";
+
+function nearestTuesdayDateLocal() {
+  const d = new Date();
+  const daysUntilTuesday = (2 - d.getDay() + 7) % 7;
+  d.setDate(d.getDate() + daysUntilTuesday);
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function isExistingMarketDay(rule) {
+  return Boolean(rule?.is_market_day) || String(rule?.description || "").trim() === MARKET_DAY_DESCRIPTION;
+}
+
 function productLabel(product) {
   if (!product) return "";
   const name = product.name || `#${product.id}`;
@@ -87,7 +100,7 @@ function RuleIcon({ ruleType, className = "h-6 w-6" }) {
   return <ShoppingCart className={className} />;
 }
 
-export function CartPromotionModal({ open, mode, busy, rule, onCancel, onSave }) {
+export function CartPromotionModal({ open, mode, busy, rule, onCancel, onSave, marketDayEnabled = false }) {
   const isEdit = mode === "edit";
   const [ruleType, setRuleType] = useState("DELIVERY_FEE_OVERRIDE");
   const [thresholdAmount, setThresholdAmount] = useState("");
@@ -100,6 +113,7 @@ export function CartPromotionModal({ open, mode, busy, rule, onCancel, onSave })
   const [rewardMaxQty, setRewardMaxQty] = useState("");
   const [thresholdBaseMode, setThresholdBaseMode] = useState("ITEMS_SUBTOTAL");
   const [priority, setPriority] = useState("100");
+  const [isMarketDay, setIsMarketDay] = useState(false);
   const [startDate, setStartDate] = useState("");
   const [startTime, setStartTime] = useState("00:00");
   const [endDate, setEndDate] = useState("");
@@ -151,9 +165,12 @@ export function CartPromotionModal({ open, mode, busy, rule, onCancel, onSave })
       setRewardMaxQty(rule.reward_max_qty == null ? "" : String(rule.reward_max_qty));
       setThresholdBaseMode(rule.threshold_base_mode || "ITEMS_SUBTOTAL");
       setPriority(rule.priority == null ? "100" : String(rule.priority));
-      setStartDate(start.date || "");
+      const marketDay = isExistingMarketDay(rule);
+      const marketDate = marketDay ? (start.date || nearestTuesdayDateLocal()) : null;
+      setIsMarketDay(marketDay);
+      setStartDate(marketDay ? marketDate : (start.date || ""));
       setStartTime("00:00");
-      setEndDate(end.date || "");
+      setEndDate(marketDay ? marketDate : (end.date || ""));
       setEndTime("23:59:59");
     } else {
       setRuleType("DELIVERY_FEE_OVERRIDE");
@@ -166,12 +183,25 @@ export function CartPromotionModal({ open, mode, busy, rule, onCancel, onSave })
       setRewardMaxQty("");
       setThresholdBaseMode("ITEMS_SUBTOTAL");
       setPriority("100");
+      setIsMarketDay(false);
       setStartDate(todayDateLocal());
       setStartTime("00:00");
       setEndDate("");
       setEndTime("23:59:59");
     }
   }, [open, isEdit, rule]);
+
+  useEffect(() => {
+    if (!open || !marketDayEnabled || !isMarketDay) return;
+    const existingDate = isEdit && isExistingMarketDay(rule)
+      ? splitDateTime(rule?.start_at).date
+      : "";
+    const marketDate = existingDate || nearestTuesdayDateLocal();
+    setStartDate(marketDate);
+    setStartTime("00:00");
+    setEndDate(marketDate);
+    setEndTime("23:59:59");
+  }, [open, marketDayEnabled, isMarketDay, isEdit, rule]);
 
   if (!open) return null;
 
@@ -260,7 +290,7 @@ export function CartPromotionModal({ open, mode, busy, rule, onCancel, onSave })
     const payload = {
       rule_type: ruleType,
       title: null,
-      description: null,
+      description: marketDayEnabled && isMarketDay ? MARKET_DAY_DESCRIPTION : null,
       threshold_amount: Number(thresholdAmount),
       threshold_base_mode: thresholdBaseMode,
       priority: Number(priority),
@@ -269,6 +299,8 @@ export function CartPromotionModal({ open, mode, busy, rule, onCancel, onSave })
       start_at: startDate ? combineDateTime(startDate, startTime) : null,
       end_at: endDate ? combineDateTime(endDate, endTime) : null,
     };
+
+    if (marketDayEnabled) payload.is_market_day = isMarketDay;
 
     if (ruleType === "DELIVERY_FEE_OVERRIDE") {
       payload.delivery_fee_override = Number(deliveryFeeOverride);
@@ -448,21 +480,45 @@ export function CartPromotionModal({ open, mode, busy, rule, onCancel, onSave })
                 </>
               ) : null}
 
+              {marketDayEnabled ? (
+              <div className="sm:col-span-12 rounded-2xl border border-amber-200 bg-amber-50 p-3">
+                <label className="flex cursor-pointer items-start gap-3 text-sm font-extrabold text-amber-950">
+                  <input
+                    type="checkbox"
+                    className="mt-1 h-4 w-4 rounded border-amber-300"
+                    checked={isMarketDay}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setIsMarketDay(checked);
+                    }}
+                  />
+                  <span>
+                    מבצע יום השוק
+                    <span className="mt-1 block text-xs font-semibold text-amber-800">
+                      התיאור והתאריכים יינעלו אוטומטית ליום שלישי הקרוב.
+                    </span>
+                  </span>
+                </label>
+              </div>
+              ) : null}
+
               <InputShell label="תאריך התחלה" error="" className="sm:col-span-3">
                 <input
-                  className="mt-2 w-full rounded-2xl bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-slate-200"
+                  className="mt-2 w-full rounded-2xl bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-slate-200 disabled:bg-slate-100 disabled:text-slate-500"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
                   type="date"
+                  disabled={marketDayEnabled && isMarketDay}
                 />
               </InputShell>
 
               <InputShell label="תאריך סיום" error={fieldErrors.end_at} className="sm:col-span-3">
                 <input
-                  className="mt-2 w-full rounded-2xl bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-slate-200"
+                  className="mt-2 w-full rounded-2xl bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-slate-200 disabled:bg-slate-100 disabled:text-slate-500"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
                   type="date"
+                  disabled={marketDayEnabled && isMarketDay}
                 />
               </InputShell>
 
@@ -473,7 +529,7 @@ export function CartPromotionModal({ open, mode, busy, rule, onCancel, onSave })
             <button className="btn-outline" onClick={onCancel} disabled={busy}>ביטול</button>
             <button className="btn-success" onClick={submit} disabled={busy}>
               {busy ? <RefreshCw className="h-4 w-4 animate-spin" /> : null}
-              {isEdit ? "שמור שינויים" : "הוסף מבצע סל"}
+              {isEdit ? "שמור שינויים" : "הוסף מבצע"}
             </button>
           </div>
         </div>

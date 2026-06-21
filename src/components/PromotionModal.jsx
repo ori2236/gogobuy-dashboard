@@ -30,6 +30,19 @@ function todayDateLocal() {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+const MARKET_DAY_DESCRIPTION = "מבצע יום השוק";
+
+function nearestTuesdayDateLocal() {
+  const d = new Date();
+  const daysUntilTuesday = (2 - d.getDay() + 7) % 7;
+  d.setDate(d.getDate() + daysUntilTuesday);
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function isExistingMarketDay(promotion) {
+  return Boolean(promotion?.is_market_day) || String(promotion?.description || "").trim() === MARKET_DAY_DESCRIPTION;
+}
+
 function splitDateTime(value) {
   if (!value) return { date: "", time: "00:00" };
 
@@ -89,7 +102,7 @@ function InputShell({ label, error, children, className = "" }) {
   );
 }
 
-export function PromotionModal({ open, mode, busy, promotion, onCancel, onSave }) {
+export function PromotionModal({ open, mode, busy, promotion, onCancel, onSave, marketDayEnabled = false }) {
   const isEdit = mode === "edit";
 
   const [productId, setProductId] = useState("");
@@ -103,6 +116,7 @@ export function PromotionModal({ open, mode, busy, promotion, onCancel, onSave }
   const [bundlePayPrice, setBundlePayPrice] = useState("");
   const [maxDiscountedQty, setMaxDiscountedQty] = useState("");
   const [description, setDescription] = useState("");
+  const [isMarketDay, setIsMarketDay] = useState(false);
   const [startDate, setStartDate] = useState(todayDateLocal());
   const [startTime, setStartTime] = useState("00:00");
   const [endDate, setEndDate] = useState("");
@@ -154,10 +168,13 @@ export function PromotionModal({ open, mode, busy, promotion, onCancel, onSave }
       setMaxDiscountedQty(
         promotion.max_discounted_qty == null ? "" : String(promotion.max_discounted_qty),
       );
-      setDescription(promotion.description || "");
-      setStartDate(start.date || todayDateLocal());
+      const marketDay = isExistingMarketDay(promotion);
+      const marketDate = marketDay ? (start.date || nearestTuesdayDateLocal()) : null;
+      setIsMarketDay(marketDay);
+      setDescription(marketDay ? MARKET_DAY_DESCRIPTION : (promotion.description || ""));
+      setStartDate(marketDay ? marketDate : (start.date || todayDateLocal()));
       setStartTime("00:00");
-      setEndDate(end.date || "");
+      setEndDate(marketDay ? marketDate : (end.date || ""));
       setEndTime("23:59:59");
     } else {
       setProductId("");
@@ -169,6 +186,7 @@ export function PromotionModal({ open, mode, busy, promotion, onCancel, onSave }
       setBundleBuyQty("");
       setBundlePayPrice("");
       setMaxDiscountedQty("");
+      setIsMarketDay(false);
       setDescription("");
       setStartDate(todayDateLocal());
       setStartTime("00:00");
@@ -176,6 +194,19 @@ export function PromotionModal({ open, mode, busy, promotion, onCancel, onSave }
       setEndTime("23:59:59");
     }
   }, [open, isEdit, promotion]);
+
+  useEffect(() => {
+    if (!open || !marketDayEnabled || !isMarketDay) return;
+    const existingDate = isEdit && isExistingMarketDay(promotion)
+      ? splitDateTime(promotion?.start_at).date
+      : "";
+    const marketDate = existingDate || nearestTuesdayDateLocal();
+    setDescription(MARKET_DAY_DESCRIPTION);
+    setStartDate(marketDate);
+    setStartTime("00:00");
+    setEndDate(marketDate);
+    setEndTime("23:59:59");
+  }, [open, marketDayEnabled, isMarketDay, isEdit, promotion]);
 
   if (!open) return null;
 
@@ -225,8 +256,8 @@ export function PromotionModal({ open, mode, busy, promotion, onCancel, onSave }
 
     if (String(maxDiscountedQty || "").trim()) {
       const maxQty = numberValue(maxDiscountedQty);
-      if (maxQty === null || maxQty <= 0 || !Number.isInteger(maxQty)) {
-        errors.max_discounted_qty = "מקסימום שימושים חייב להיות מספר שלם גדול מ-0";
+      if (maxQty === null || maxQty <= 0) {
+        errors.max_discounted_qty = "מקסימום במבצע חייב להיות גדול מ-0";
       }
     }
 
@@ -243,10 +274,12 @@ export function PromotionModal({ open, mode, busy, promotion, onCancel, onSave }
     const payload = {
       product_id: Number(productId),
       kind,
-      description: description.trim() || null,
+      description: marketDayEnabled && isMarketDay ? MARKET_DAY_DESCRIPTION : (description.trim() || null),
       start_at: combineDateTime(startDate, startTime),
       end_at: endDate ? combineDateTime(endDate, endTime) : null,
     };
+
+    if (marketDayEnabled) payload.is_market_day = isMarketDay;
 
     if (kind === "PERCENT_OFF") payload.percent_off = Number(percentOff);
     if (kind === "AMOUNT_OFF") payload.amount_off = Number(amountOff);
@@ -433,37 +466,62 @@ export function PromotionModal({ open, mode, busy, promotion, onCancel, onSave }
                 </>
               ) : null}
 
-              <InputShell label="מקסימום שימושים במבצע" error={fieldErrors.max_discounted_qty} className="sm:col-span-4">
+              <InputShell label="מקסימום יחידות במבצע" error={fieldErrors.max_discounted_qty} className="sm:col-span-4">
                 <input
                   className="mt-2 w-full rounded-2xl bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-slate-200"
                   value={maxDiscountedQty}
                   onChange={(e) => setMaxDiscountedQty(e.target.value)}
-                  inputMode="numeric"
-                  placeholder="ריק = ללא הגבלה"
+                  inputMode="decimal"
+                  placeholder="ריק = -"
                 />
                 <div className="mt-1 text-xs text-slate-500">
-                  במבצע 2 יח׳, 1 אומר פעם אחת בלבד; 2 אומר עד שני זוגות במבצע.
+                  לדוגמה: 2 אומר שרק 2 יחידות ראשונות יקבלו את המבצע.
                 </div>
               </InputShell>
 
+              {marketDayEnabled ? (
+              <div className="sm:col-span-12 rounded-2xl border border-amber-200 bg-amber-50 p-3">
+                <label className="flex cursor-pointer items-start gap-3 text-sm font-extrabold text-amber-950">
+                  <input
+                    type="checkbox"
+                    className="mt-1 h-4 w-4 rounded border-amber-300"
+                    checked={isMarketDay}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setIsMarketDay(checked);
+                      if (!checked) setDescription("");
+                    }}
+                  />
+                  <span>
+                    מבצע יום השוק
+                    <span className="mt-1 block text-xs font-semibold text-amber-800">
+                      התיאור והתאריכים יינעלו אוטומטית ליום שלישי הקרוב.
+                    </span>
+                  </span>
+                </label>
+              </div>
+              ) : null}
+
               <InputShell label="תאריך התחלה" error={fieldErrors.start_at} className="sm:col-span-4">
                 <input
-                  className="mt-2 w-full rounded-2xl bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-slate-200"
+                  className="mt-2 w-full rounded-2xl bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-slate-200 disabled:bg-slate-100 disabled:text-slate-500"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
                   type="date"
+                  disabled={marketDayEnabled && isMarketDay}
                 />
               </InputShell>
 
               <InputShell label="תאריך סיום" error={fieldErrors.end_at} className="sm:col-span-4">
                 <input
-                  className="mt-2 w-full rounded-2xl bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-slate-200"
+                  className="mt-2 w-full rounded-2xl bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-slate-200 disabled:bg-slate-100 disabled:text-slate-500"
                   value={endDate}
                   onChange={(e) => {
                     setEndDate(e.target.value);
                     if (e.target.value && !endTime) setEndTime("23:59:59");
                   }}
                   type="date"
+                  disabled={marketDayEnabled && isMarketDay}
                 />
                 <div className="mt-1 text-xs text-slate-500">
                   אפשר להשאיר ריק למבצע ללא תאריך סיום.
@@ -472,8 +530,9 @@ export function PromotionModal({ open, mode, busy, promotion, onCancel, onSave }
 
               <InputShell label="תיאור" error="" className="sm:col-span-12">
                 <textarea
-                  className="mt-2 min-h-24 w-full rounded-2xl bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-slate-200"
+                  className="mt-2 min-h-24 w-full rounded-2xl bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-slate-200 disabled:bg-slate-100 disabled:text-slate-500"
                   value={description}
+                  disabled={marketDayEnabled && isMarketDay}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="לדוגמה: חלב תנובה 3% 1 ליטר"
                 />

@@ -2,13 +2,22 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import {
   BadgePercent,
+  ChevronDown,
+  ChevronUp,
   Clock3,
   Gift,
+  Info,
   Plus,
+  Save,
   Search,
+  Send,
   ShoppingCart,
   Sparkles,
+  Trash2,
   Truck,
+  UserPlus,
+  Users,
+  X,
 } from "lucide-react";
 import {
   useCartPromotionRules,
@@ -24,6 +33,13 @@ import {
   useStockCategories,
   useUpdateCartPromotionRule,
   useUpdatePromotion,
+  useMarketDayPromotions,
+  useMarketDayRecipients,
+  useCreateMarketDayRecipient,
+  useUpdateMarketDayRecipient,
+  useDeleteMarketDayRecipient,
+  useSendMarketDayTemplate,
+  useSendMarketDayTemplateToRecipient,
 } from "../lib/hooks";
 import { cn } from "../lib/utils";
 import { ConfirmDeleteModal } from "./ConfirmDeleteModal";
@@ -299,6 +315,28 @@ function formatDateOnly(value) {
   return `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}.${d.getFullYear()}`;
 }
 
+function formatMarketDaySlashDate(value) {
+  const d = value ? new Date(value) : new Date();
+  if (Number.isNaN(d.getTime())) return "";
+  return `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`;
+}
+
+function nextTuesdayDate(now = new Date()) {
+  const d = new Date(now);
+  const day = d.getDay();
+  const daysUntilTuesday = (2 - day + 7) % 7;
+  d.setDate(d.getDate() + daysUntilTuesday);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function marketDayDateLabel(nextMarketDay) {
+  const raw = nextMarketDay?.date || nextMarketDay?.start_at || nextMarketDay?.startAt || "";
+  const date = raw ? new Date(raw) : nextTuesdayDate();
+  const formatted = formatMarketDaySlashDate(date);
+  return formatted ? `יום השוק הקרוב: יום שלישי ${formatted}` : "יום השוק הקרוב: יום שלישי";
+}
+
 function dateRangeText(promo) {
   return {
     start: promo?.start_at ? formatDateOnly(promo.start_at) : "",
@@ -449,11 +487,493 @@ function SummaryCard({ active, className, icon, label, value, onClick }) {
   );
 }
 
+
+function displayLocalPhone(phone) {
+  const digits = String(phone || "").replace(/\D/g, "");
+  if (!digits) return "";
+  if (digits.startsWith("972") && digits.length >= 11) return `0${digits.slice(3)}`;
+  return digits;
+}
+
+function phoneSearchValue(phone) {
+  const local = displayLocalPhone(phone);
+  const raw = String(phone || "").replace(/\D/g, "");
+  return `${local} ${raw}`.trim();
+}
+
+function normalizeMarketDaySendStatus(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (["sent", "success", "succeeded", "delivered"].includes(normalized)) return "sent";
+  if (["failed", "error", "invalid"].includes(normalized)) return "failed";
+  return "pending";
+}
+
+function isLocalPhoneValid(phone) {
+  const digits = displayLocalPhone(phone).replace(/\D/g, "");
+  if (!digits) return false;
+  return /^0\d{8,9}$/.test(digits);
+}
+
+function currentTuesdayCycleStartMs(now = new Date()) {
+  const d = new Date(now);
+  const day = d.getDay();
+  const daysSinceTuesday = (day - 2 + 7) % 7;
+  d.setDate(d.getDate() - daysSinceTuesday);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
+function isRecipientStatusFromCurrentMarketDay(recipient) {
+  const raw = recipient?.last_send_attempt_at || recipient?.last_send_at;
+  if (!raw) return false;
+  const t = new Date(raw).getTime();
+  return Number.isFinite(t) && t >= currentTuesdayCycleStartMs();
+}
+
+function effectiveMarketDaySendStatus(recipient) {
+  const raw = normalizeMarketDaySendStatus(
+    recipient?.last_send_status ?? recipient?.send_status ?? recipient?.status ?? "",
+  );
+  if (raw === "pending") return "pending";
+  return isRecipientStatusFromCurrentMarketDay(recipient) ? raw : "pending";
+}
+
+function recipientStatusMeta(recipient) {
+  const key = effectiveMarketDaySendStatus(recipient);
+
+  if (key === "sent") {
+    return {
+      key,
+      label: "נשלח",
+      pillClass: "border border-emerald-200 bg-emerald-50 text-emerald-700",
+      lineClass: "bg-emerald-500",
+      dotClass: "bg-emerald-500",
+      softClass: "bg-emerald-50/70 text-emerald-700",
+      cardClass: "shadow-emerald-100/70",
+      caption: recipient?.last_send_at ? `נשלח לאחרונה ב-${formatDateOnly(recipient.last_send_at)}` : "ההודעה נשלחה בהצלחה",
+    };
+  }
+
+  if (key === "failed") {
+    return {
+      key,
+      label: "נכשל",
+      pillClass: "border border-rose-200 bg-rose-50 text-rose-700",
+      lineClass: "bg-rose-500",
+      dotClass: "bg-rose-500",
+      softClass: "bg-rose-50/80 text-rose-700",
+      cardClass: "shadow-rose-100/70",
+      caption: recipient?.last_send_error ? String(recipient.last_send_error) : "השליחה האחרונה נכשלה",
+    };
+  }
+
+  return {
+    key,
+    label: "לא נשלח",
+    pillClass: "border border-sky-200 bg-sky-50 text-sky-700",
+    lineClass: "bg-sky-500",
+    dotClass: "bg-sky-500",
+    softClass: "bg-sky-50/80 text-sky-700",
+    cardClass: "shadow-sky-100/70",
+    caption: "טרם בוצע ניסיון שליחה",
+  };
+}
+
+function MarketDayPromotionsPanel({ items, loading, error, busy, onShowOriginal }) {
+  return (
+    <section className="mt-5 overflow-hidden rounded-[24px] border border-amber-100 bg-white shadow-sm shadow-amber-100/30">
+      <div className="flex items-center justify-between gap-3 border-b border-amber-100 bg-amber-50/55 px-5 py-3 text-right" dir="rtl">
+        <div>
+          <div className="text-sm font-extrabold text-slate-950">המבצעים שיופיעו ביום השוק</div>
+          <div className="mt-0.5 text-xs font-semibold text-amber-800">כל מבצע שמסומן כיום השוק מופיע כאן בנוסף למיקום המקורי שלו.</div>
+        </div>
+        <span className="rounded-full border border-amber-200 bg-white px-3 py-1 text-xs font-extrabold text-amber-800 shadow-sm">
+          {items.length} מבצעים
+        </span>
+      </div>
+
+      <div className="p-3 sm:p-4" dir="rtl">
+        {loading ? (
+          <div className="rounded-2xl bg-slate-50 p-6 text-center text-sm font-semibold text-slate-500">טוען מבצעי יום השוק...</div>
+        ) : error ? (
+          <div className="rounded-2xl border border-rose-100 bg-rose-50 p-4 text-center text-sm font-semibold text-rose-700">
+            שגיאה בטעינת מבצעי יום השוק: {String(error?.message || "")}
+          </div>
+        ) : items.length ? (
+          <div className="grid gap-2">
+            {items.map((item) => (
+              <div
+                key={`${item.type}:${item.id}`}
+                className="group relative overflow-hidden rounded-2xl border border-slate-100 bg-white px-4 py-3 shadow-sm transition hover:border-amber-200 hover:bg-amber-50/25"
+              >
+                <div className="absolute inset-y-3 right-0 w-1 rounded-full bg-amber-400" />
+                <div className="grid gap-3 pr-3 md:grid-cols-[minmax(0,1fr)_180px_110px_44px] md:items-center">
+                  <div className="min-w-0 text-right">
+                    <div className="truncate text-sm font-extrabold text-slate-950">{item.title || `#${item.id}`}</div>
+                    {item.subtitle ? <div className="mt-0.5 truncate text-xs font-semibold text-slate-500">{item.subtitle}</div> : null}
+                  </div>
+                  <div className="text-right text-sm font-extrabold text-slate-900 md:text-center">{item.value_text || "-"}</div>
+                  <div className="md:text-center"><StatusOrValidityCell item={item} mode="status" /></div>
+                  <button
+                    type="button"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 disabled:opacity-50"
+                    title="הצג את המבצע בתת הטאב המקורי"
+                    disabled={busy}
+                    onClick={() => onShowOriginal?.(item)}
+                  >
+                    <Info className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm font-semibold text-slate-500">
+            אין כרגע מבצעים שמסווגים כמבצעי יום השוק.
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function MarketDayRecipientsPanel({
+  recipients,
+  loading,
+  error,
+  busy,
+  draft,
+  setDraft,
+  editingId,
+  edits,
+  setEditingId,
+  setEdits,
+  onAdd,
+  onSave,
+  onDelete,
+  onSendRecipient,
+  sendingRecipientId,
+  canEdit,
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const cleanSearch = String(search || "").trim().toLowerCase();
+  const rows = Array.isArray(recipients) ? recipients : [];
+
+  const summary = useMemo(() => {
+    return rows.reduce(
+      (acc, recipient) => {
+        const meta = recipientStatusMeta(recipient);
+        const invalid = !isLocalPhoneValid(recipient?.phone);
+        acc.total += 1;
+        acc[meta.key] += 1;
+        if (invalid) acc.invalid += 1;
+        if (meta.key !== "sent") acc.sendable += 1;
+        return acc;
+      },
+      { total: 0, sent: 0, failed: 0, pending: 0, invalid: 0, sendable: 0 },
+    );
+  }, [rows]);
+
+  const statusOptions = useMemo(
+    () => [
+      { key: "all", label: "הכל", count: summary.total, className: "border-slate-200 bg-white text-slate-700" },
+      { key: "pending", label: "לא נשלח", count: summary.pending, className: "border-sky-200 bg-sky-50 text-sky-700" },
+      { key: "failed", label: "נכשל", count: summary.failed, className: "border-rose-200 bg-rose-50 text-rose-700" },
+      { key: "sent", label: "נשלח", count: summary.sent, className: "border-emerald-200 bg-emerald-50 text-emerald-700" },
+    ],
+    [summary],
+  );
+
+  const filteredRecipients = useMemo(() => {
+    return rows.filter((recipient) => {
+      const haystack = `${recipient.name || ""} ${phoneSearchValue(recipient.phone)}`.toLowerCase();
+      const matchesSearch = !cleanSearch || haystack.includes(cleanSearch);
+      if (!matchesSearch) return false;
+      if (statusFilter === "all") return true;
+      return recipientStatusMeta(recipient).key === statusFilter;
+    });
+  }, [rows, cleanSearch, statusFilter]);
+
+  function startEdit(recipient) {
+    if (!canEdit) return;
+    setEditingId(recipient.id);
+    setEdits({ name: recipient.name || "", phone: displayLocalPhone(recipient.phone) });
+  }
+
+  return (
+    <section className="mt-6 overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
+      <button
+        type="button"
+        className="flex w-full flex-col gap-4 border-b border-slate-100 bg-gradient-to-r from-slate-50 via-white to-white px-5 py-5 text-right transition hover:bg-slate-50/80"
+        dir="rtl"
+        onClick={() => setIsOpen((prev) => !prev)}
+      >
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-slate-700 shadow-sm">
+              <Users className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="text-base font-extrabold text-slate-950">לקוחות שיקבלו את ההודעה</div>
+              <div className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
+                הרשימה מסתנכרנת מלקוחות שביצעו הזמנות בעבר.
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-end lg:self-start">
+            {!canEdit ? (
+              <span className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-extrabold text-slate-600">צפייה בלבד</span>
+            ) : null}
+            <span className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-extrabold text-slate-700 shadow-sm">
+              {summary.total} לקוחות
+            </span>
+            <span className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm">
+              {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </span>
+          </div>
+        </div>
+      </button>
+
+      {isOpen ? (
+        <div className="p-5" dir="rtl">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-wrap items-center gap-2">
+              {statusOptions.map((option) => (
+                <button
+                  key={option.key}
+                  type="button"
+                  onClick={() => setStatusFilter(option.key)}
+                  className={cn(
+                    "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-extrabold transition",
+                    option.className,
+                    statusFilter === option.key ? "ring-2 ring-slate-900/10" : "opacity-80 hover:opacity-100",
+                  )}
+                >
+                  <span>{option.label}</span>
+                  <span className="rounded-full bg-white/80 px-2 py-0.5">{option.count}</span>
+                </button>
+              ))}
+            </div>
+
+            <div className="relative w-full lg:max-w-sm">
+              <div className="pointer-events-none absolute inset-y-0 start-3 flex items-center text-slate-400">
+                <Search className="h-4 w-4" />
+              </div>
+              <input
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50 ps-10 pe-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-slate-300 focus:bg-white focus:ring-2 focus:ring-slate-200"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="חיפוש לפי שם או מספר"
+              />
+            </div>
+          </div>
+
+          {canEdit ? (
+            <div className="mt-4 grid gap-3 rounded-[24px] border border-slate-100 bg-slate-50 p-3 md:grid-cols-[1fr_220px_180px]">
+              <input
+                className="rounded-2xl border border-transparent bg-white px-3 py-2.5 text-right text-sm font-medium text-slate-900 outline-none transition focus:border-slate-200 focus:ring-2 focus:ring-slate-200"
+                value={draft.name}
+                onChange={(e) => setDraft((prev) => ({ ...prev, name: e.target.value }))}
+                placeholder="שם לקוח"
+              />
+              <input
+                className="rounded-2xl border border-transparent bg-white px-3 py-2.5 text-right text-sm font-medium text-slate-900 outline-none transition focus:border-slate-200 focus:ring-2 focus:ring-slate-200"
+                value={draft.phone}
+                onChange={(e) => setDraft((prev) => ({ ...prev, phone: displayLocalPhone(e.target.value) }))}
+                placeholder="מספר טלפון"
+                inputMode="tel"
+                dir="rtl"
+              />
+              <button
+                type="button"
+                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 py-2.5 text-sm font-extrabold text-white shadow-sm transition hover:bg-slate-800 disabled:opacity-50"
+                disabled={busy || !String(draft.phone || "").trim()}
+                onClick={onAdd}
+              >
+                <UserPlus className="h-4 w-4" />
+                הוסף לקוח
+              </button>
+            </div>
+          ) : null}
+
+          <div className="mt-4">
+            {loading ? (
+              <div className="rounded-[24px] bg-slate-50 p-10 text-center text-sm font-semibold text-slate-500">טוען לקוחות...</div>
+            ) : error ? (
+              <div className="rounded-[24px] border border-rose-100 bg-rose-50 p-5 text-center text-sm font-semibold text-rose-700">
+                שגיאה בטעינת לקוחות: {String(error?.message || "")}
+              </div>
+            ) : filteredRecipients.length ? (
+              <div className="grid gap-4 xl:grid-cols-2">
+                {filteredRecipients.map((recipient) => {
+                  const isEditing = editingId === recipient.id;
+                  const phone = displayLocalPhone(recipient.phone);
+                  const meta = recipientStatusMeta(recipient);
+                  const invalidPhone = !isLocalPhoneValid(recipient.phone);
+                  const nameLabel = String(recipient.name || "").trim() || "ללא שם";
+                  const sendingThisRecipient = sendingRecipientId === recipient.id;
+
+                  return (
+                    <div
+                      key={recipient.id}
+                      className={cn(
+                        "relative overflow-hidden rounded-[26px] border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow-md",
+                        meta.cardClass,
+                        isEditing ? "xl:col-span-2" : "",
+                      )}
+                    >
+                      <div className={cn("absolute inset-y-4 right-0 w-1 rounded-full", meta.lineClass)} />
+
+                      {isEditing ? (
+                        <div className="pr-3">
+                          <div className="rounded-[24px] border border-slate-200 bg-slate-50/80 p-4 shadow-inner">
+                            <div className="mb-4 flex items-center justify-between gap-3">
+                              <div className="text-base font-extrabold text-slate-950">עריכת לקוח</div>
+                              <button
+                                type="button"
+                                className="inline-flex h-9 items-center justify-center gap-2 rounded-full bg-white px-3 text-xs font-extrabold text-slate-600 shadow-sm transition hover:bg-slate-100 disabled:opacity-50"
+                                disabled={busy}
+                                onClick={() => setEditingId(null)}
+                                title="ביטול"
+                              >
+                                <X className="h-4 w-4" />
+                                ביטול
+                              </button>
+                            </div>
+
+                            <div className="grid gap-3 md:grid-cols-2">
+                              <label className="block text-right">
+                                <span className="mb-1 block text-xs font-extrabold text-slate-500">שם לקוח</span>
+                                <input
+                                  className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-right text-sm font-semibold text-slate-900 outline-none transition focus:border-slate-300 focus:ring-2 focus:ring-slate-200"
+                                  value={edits.name || ""}
+                                  onChange={(e) => setEdits((prev) => ({ ...prev, name: e.target.value }))}
+                                  placeholder="שם לקוח"
+                                />
+                              </label>
+
+                              <label className="block text-right">
+                                <span className="mb-1 block text-xs font-extrabold text-slate-500">מספר טלפון</span>
+                                <input
+                                  className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-right text-sm font-semibold text-slate-900 outline-none transition focus:border-slate-300 focus:ring-2 focus:ring-slate-200"
+                                  value={edits.phone || ""}
+                                  onChange={(e) => setEdits((prev) => ({ ...prev, phone: displayLocalPhone(e.target.value) }))}
+                                  placeholder="מספר טלפון"
+                                  inputMode="tel"
+                                  dir="rtl"
+                                />
+                              </label>
+                            </div>
+
+                            <div className="mt-4 flex justify-start">
+                              <button
+                                type="button"
+                                className="inline-flex h-11 min-w-[130px] items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 text-sm font-extrabold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-50"
+                                disabled={busy}
+                                onClick={() => onSave?.(recipient.id)}
+                                title="שמור"
+                              >
+                                <Save className="h-4 w-4" />
+                                שמור
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="pr-3">
+                          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                            <div className="min-w-0 flex-1 text-right">
+                              <div className="flex flex-wrap items-center justify-start gap-2">
+                                <div className="truncate text-base font-extrabold text-slate-950">{nameLabel}</div>
+                                <span className={cn("inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-extrabold", meta.pillClass)}>
+                                  <span className={cn("h-2 w-2 rounded-full", meta.dotClass)} />
+                                  {meta.label}
+                                </span>
+                              </div>
+                              <div className="mt-1 text-lg font-extrabold tracking-tight text-slate-800" dir="rtl">{phone || "-"}</div>
+                              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs font-semibold">
+                                <span className={cn("rounded-full px-2.5 py-1", meta.softClass)}>{meta.caption}</span>
+                                {invalidPhone ? (
+                                  <span className="rounded-full bg-rose-50 px-2.5 py-1 text-rose-700">מספר לא תקין</span>
+                                ) : null}
+                              </div>
+                            </div>
+
+                            {canEdit ? (
+                              <div className="flex shrink-0 items-center gap-2 sm:pt-0.5">
+                                <button
+                                  type="button"
+                                  className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 text-blue-700 shadow-sm transition hover:bg-blue-100 disabled:opacity-50"
+                                  disabled={busy || sendingThisRecipient || invalidPhone}
+                                  onClick={() => onSendRecipient?.(recipient)}
+                                  title={invalidPhone ? "תקן את מספר הטלפון לפני שליחה" : "שלח הודעת יום השוק ללקוח הזה"}
+                                >
+                                  {sendingThisRecipient ? <Clock3 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                                </button>
+                                <button type="button" className="rounded-full bg-slate-100 px-3 py-2 text-xs font-extrabold text-slate-700 transition hover:bg-slate-200 disabled:opacity-50" disabled={busy} onClick={() => startEdit(recipient)}>עריכה</button>
+                                <button type="button" className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-rose-50 text-rose-700 shadow-sm transition hover:bg-rose-100 disabled:opacity-50" disabled={busy} onClick={() => onDelete?.(recipient)} title="הסר מהרשימה">
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="rounded-[24px] border border-dashed border-slate-200 bg-slate-50 p-10 text-center text-sm font-semibold text-slate-500">
+                אין לקוחות שמתאימים לסינון שבחרת.
+              </div>
+            )}
+          </div>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function MarketDaySendConfirmModal({ open, busy, recipientsCount, onCancel, onConfirm }) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true">
+      <div className="w-full max-w-lg rounded-3xl bg-white p-6 text-right shadow-xl" dir="rtl">
+        <div className="flex items-start gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-50 text-amber-700">
+            <Send className="h-5 w-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-lg font-extrabold text-slate-950">שליחת תבנית מבצעי יום השוק</div>
+            <div className="mt-2 text-sm leading-6 text-slate-600">
+              התבנית תישלח ל־{recipientsCount} לקוחות שלא קיבלו עדיין את הודעת יום השוק במחזור הנוכחי. הפעולה תשלח הודעות WhatsApp אמיתיות.
+            </div>
+          </div>
+        </div>
+        <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+          <button type="button" className="btn-outline" onClick={onCancel} disabled={busy}>ביטול</button>
+          <button type="button" className="btn-success" onClick={onConfirm} disabled={busy || recipientsCount <= 0}>
+            {busy ? "שולח..." : "כן, שלח לכולם"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function PromotionsPage({
+  user,
+  shopInfo,
   onNotify,
   onRegisterRefetch,
   onFetchingChange,
 }) {
+  const isAdmin = String(user?.role || "").toLowerCase() === "admin";
+  const marketDayEnabled = Boolean(shopInfo?.market_day_promotions_enabled);
   const [status, setStatus] = useState("all");
   const [globalDisplayMode, setGlobalDisplayMode] = useState("status");
   const [rowDisplayModes, setRowDisplayModes] = useState({});
@@ -486,6 +1006,13 @@ export function PromotionsPage({
   });
   const [confirmCartDel, setConfirmCartDel] = useState({ open: false, rule: null });
   const [confirmGroupDel, setConfirmGroupDel] = useState({ open: false, promotion: null });
+  const [marketDayRecipientDraft, setMarketDayRecipientDraft] = useState({ name: "", phone: "" });
+  const [marketDayEditingRecipientId, setMarketDayEditingRecipientId] = useState(null);
+  const [marketDayRecipientEdits, setMarketDayRecipientEdits] = useState({ name: "", phone: "" });
+  const [marketDaySendConfirmOpen, setMarketDaySendConfirmOpen] = useState(false);
+  const [marketDayRecipientDeleteConfirm, setMarketDayRecipientDeleteConfirm] = useState({ open: false, recipient: null });
+  const [marketDaySendingRecipientId, setMarketDaySendingRecipientId] = useState(null);
+  const [focusHighlight, setFocusHighlight] = useState(null);
 
   const qDebounced = useDebouncedValue(q, 300);
   const sort_by = sortField;
@@ -535,6 +1062,8 @@ export function PromotionsPage({
     status,
     q: String(qDebounced || "").trim(),
   });
+  const marketDayQuery = useMarketDayPromotions({ enabled: marketDayEnabled });
+  const marketDayRecipientsQuery = useMarketDayRecipients({ enabled: marketDayEnabled });
 
   const createMut = useCreatePromotion();
   const updateMut = useUpdatePromotion();
@@ -545,6 +1074,11 @@ export function PromotionsPage({
   const createGroupMut = useCreateProductGroupPromotion();
   const updateGroupMut = useUpdateProductGroupPromotion();
   const deleteGroupMut = useDeleteProductGroupPromotion();
+  const createMarketDayRecipientMut = useCreateMarketDayRecipient();
+  const updateMarketDayRecipientMut = useUpdateMarketDayRecipient();
+  const deleteMarketDayRecipientMut = useDeleteMarketDayRecipient();
+  const sendMarketDayTemplateMut = useSendMarketDayTemplate();
+  const sendMarketDayTemplateToRecipientMut = useSendMarketDayTemplateToRecipient();
 
   const busy =
     createMut.isPending ||
@@ -555,10 +1089,31 @@ export function PromotionsPage({
     deleteCartMut.isPending ||
     createGroupMut.isPending ||
     updateGroupMut.isPending ||
-    deleteGroupMut.isPending;
+    deleteGroupMut.isPending ||
+    createMarketDayRecipientMut.isPending ||
+    updateMarketDayRecipientMut.isPending ||
+    deleteMarketDayRecipientMut.isPending ||
+    sendMarketDayTemplateMut.isPending ||
+    sendMarketDayTemplateToRecipientMut.isPending;
   const promotions = promosQuery.data?.promotions || [];
   const cartRules = cartRulesQuery.data?.cart_promotion_rules || [];
   const rawGroupPromotions = groupPromosQuery.data?.product_group_promotions || [];
+  const marketDayPromotions = marketDayQuery.data?.items || [];
+  const marketDayRecipients = marketDayRecipientsQuery.data?.recipients || [];
+  const marketDayNextDateLabel = marketDayDateLabel(marketDayQuery.data?.next_market_day);
+  const marketDayRecipientSummary = useMemo(() => {
+    return marketDayRecipients.reduce(
+      (acc, recipient) => {
+        const meta = recipientStatusMeta(recipient);
+        acc.total += 1;
+        acc[meta.key] += 1;
+        if (!isLocalPhoneValid(recipient?.phone)) acc.invalid += 1;
+        if (meta.key !== "sent") acc.sendable += 1;
+        return acc;
+      },
+      { total: 0, sent: 0, failed: 0, pending: 0, invalid: 0, sendable: 0 },
+    );
+  }, [marketDayRecipients]);
   const counts = promosQuery.data?.counts || { total: 0, active: 0, inactive: 0 };
   const cartCounts = cartRulesQuery.data?.counts || { total: 0, active: 0, inactive: 0 };
   const groupCounts = groupPromosQuery.data?.counts || { total: 0, active: 0, inactive: 0 };
@@ -572,15 +1127,25 @@ export function PromotionsPage({
     promosQuery.refetch();
     cartRulesQuery.refetch();
     groupPromosQuery.refetch();
-  }, [promosQuery.refetch, cartRulesQuery.refetch, groupPromosQuery.refetch]);
+    if (marketDayEnabled) {
+      marketDayQuery.refetch();
+      marketDayRecipientsQuery.refetch();
+    }
+  }, [promosQuery.refetch, cartRulesQuery.refetch, groupPromosQuery.refetch, marketDayQuery.refetch, marketDayRecipientsQuery.refetch, marketDayEnabled]);
   useEffect(() => {
     onRegisterRefetch?.(refetchFn);
     return () => onRegisterRefetch?.(null);
   }, [onRegisterRefetch, refetchFn]);
 
   useEffect(() => {
-    onFetchingChange?.(Boolean(promosQuery.isFetching || cartRulesQuery.isFetching || groupPromosQuery.isFetching || catQuery.isFetching));
-  }, [onFetchingChange, promosQuery.isFetching, cartRulesQuery.isFetching, groupPromosQuery.isFetching, catQuery.isFetching]);
+    onFetchingChange?.(Boolean(promosQuery.isFetching || cartRulesQuery.isFetching || groupPromosQuery.isFetching || marketDayQuery.isFetching || marketDayRecipientsQuery.isFetching || catQuery.isFetching));
+  }, [onFetchingChange, promosQuery.isFetching, cartRulesQuery.isFetching, groupPromosQuery.isFetching, marketDayQuery.isFetching, marketDayRecipientsQuery.isFetching, catQuery.isFetching]);
+
+  useEffect(() => {
+    if (!marketDayEnabled && promoTab === "marketDay") {
+      setPromoTab("products");
+    }
+  }, [marketDayEnabled, promoTab]);
 
   const activeFilterLabel = useMemo(() => {
     return FILTERS.find((f) => f.value === status)?.label || "כל המבצעים";
@@ -657,16 +1222,39 @@ export function PromotionsPage({
     return rows;
   }, [rawGroupPromotions, groupSortField, groupSortDir]);
 
+  function bringFocusedFirst(rows, type) {
+    if (!focusHighlight || focusHighlight.type !== type) return rows;
+    const id = Number(focusHighlight.id);
+    const list = Array.isArray(rows) ? rows.slice() : [];
+    const idx = list.findIndex((row) => Number(row.id) === id);
+    if (idx <= 0) return list;
+    const [item] = list.splice(idx, 1);
+    return [item, ...list];
+  }
+
+  const displayPromotions = useMemo(() => bringFocusedFirst(promotions, "product"), [promotions, focusHighlight]);
+  const displayGroupPromotions = useMemo(() => bringFocusedFirst(groupPromotions, "group"), [groupPromotions, focusHighlight]);
+  const displayCartRules = useMemo(() => bringFocusedFirst(sortedCartRules, "cart"), [sortedCartRules, focusHighlight]);
+
+  useEffect(() => {
+    if (!focusHighlight) return undefined;
+    const t = setTimeout(() => setFocusHighlight(null), 8000);
+    return () => clearTimeout(t);
+  }, [focusHighlight]);
+
   const isCartTab = promoTab === "cart";
   const isGroupTab = promoTab === "groups";
   const isProductsTab = promoTab === "products";
-  const currentFilteredCount = isCartTab
-    ? sortedCartRules.length
-    : isGroupTab
-      ? groupPromotions.length
-      : promotions.length;
-  const currentSortField = isCartTab ? cartSortField : isGroupTab ? groupSortField : sortField;
-  const currentSortDir = isCartTab ? cartSortDir : isGroupTab ? groupSortDir : sortDir;
+  const isMarketTab = promoTab === "marketDay";
+  const currentFilteredCount = isMarketTab
+    ? marketDayPromotions.length
+    : isCartTab
+      ? sortedCartRules.length
+      : isGroupTab
+        ? groupPromotions.length
+        : promotions.length;
+  const currentSortField = isMarketTab ? "default" : isCartTab ? cartSortField : isGroupTab ? groupSortField : sortField;
+  const currentSortDir = isMarketTab ? "desc" : isCartTab ? cartSortDir : isGroupTab ? groupSortDir : sortDir;
 
   function toggleCurrentSortDirection() {
     if (isCartTab) {
@@ -799,6 +1387,92 @@ export function PromotionsPage({
     }
   }
 
+  function showOriginalPromotion(item) {
+    if (!item) return;
+    const nextTab = item.type === "group" ? "groups" : item.type === "cart" ? "cart" : "products";
+    setPromoTab(nextTab);
+    setStatus("all");
+    setQ("");
+    setCategory("");
+    setSubCategory("");
+    setFocusHighlight({ type: item.type, id: Number(item.id) });
+  }
+
+  async function addMarketDayRecipient() {
+    try {
+      await createMarketDayRecipientMut.mutateAsync(marketDayRecipientDraft);
+      setMarketDayRecipientDraft({ name: "", phone: "" });
+      onNotify?.("success", "לקוח נוסף לרשימת השליחה");
+    } catch (e) {
+      onNotify?.("error", e?.message || "שגיאה בהוספת לקוח");
+    }
+  }
+
+  async function saveMarketDayRecipient(id) {
+    try {
+      await updateMarketDayRecipientMut.mutateAsync({ id, payload: marketDayRecipientEdits });
+      setMarketDayEditingRecipientId(null);
+      setMarketDayRecipientEdits({ name: "", phone: "" });
+      onNotify?.("success", "הלקוח עודכן");
+    } catch (e) {
+      onNotify?.("error", e?.message || "שגיאה בעדכון לקוח");
+    }
+  }
+
+  function deleteMarketDayRecipient(recipient) {
+    if (!recipient) return;
+    setMarketDayRecipientDeleteConfirm({ open: true, recipient });
+  }
+
+  async function confirmDeleteMarketDayRecipient() {
+    const recipient = marketDayRecipientDeleteConfirm.recipient;
+    if (!recipient) return;
+    try {
+      await deleteMarketDayRecipientMut.mutateAsync(recipient.id);
+      setMarketDayRecipientDeleteConfirm({ open: false, recipient: null });
+      onNotify?.("success", "הלקוח הוסר מרשימת השליחה");
+    } catch (e) {
+      onNotify?.("error", e?.message || "שגיאה במחיקת לקוח");
+    }
+  }
+
+  async function sendMarketDayTemplateToSingleRecipient(recipient) {
+    if (!recipient?.id) return;
+    setMarketDaySendingRecipientId(recipient.id);
+    try {
+      const result = await sendMarketDayTemplateToRecipientMut.mutateAsync(recipient.id);
+      const sent = Number(result?.sent_count || 0);
+      const failed = Number(result?.failed_count || 0);
+      if (failed > 0 || sent <= 0) {
+        onNotify?.("error", result?.failures?.[0]?.error || "ההודעה לא נשלחה");
+      } else {
+        onNotify?.("success", `הודעת יום השוק נשלחה ל-${String(recipient.name || "").trim() || displayLocalPhone(recipient.phone) || "הלקוח"}`);
+      }
+      marketDayRecipientsQuery.refetch();
+    } catch (e) {
+      onNotify?.("error", e?.message || "שגיאה בשליחת ההודעה ללקוח");
+    } finally {
+      setMarketDaySendingRecipientId(null);
+    }
+  }
+
+  async function confirmSendMarketDayTemplate() {
+    try {
+      const result = await sendMarketDayTemplateMut.mutateAsync();
+      setMarketDaySendConfirmOpen(false);
+      const sent = Number(result?.sent_count || 0);
+      const failed = Number(result?.failed_count || 0);
+      if (failed > 0) {
+        onNotify?.("error", `נשלחו ${sent} הודעות, ${failed} נכשלו`);
+      } else {
+        onNotify?.("success", `נשלחו ${sent} הודעות מבצעי יום השוק`);
+      }
+      marketDayRecipientsQuery.refetch();
+    } catch (e) {
+      onNotify?.("error", e?.message || "שגיאה בשליחת התבנית");
+    }
+  }
+
   return (
     <div className="mt-6">
       <div className="flex flex-wrap items-center justify-start gap-2 rounded-2xl border border-slate-100 bg-slate-50 p-2" dir="rtl">
@@ -844,66 +1518,123 @@ export function PromotionsPage({
           מבצעי סל
           <span className="rounded-full bg-white/15 px-2 py-0.5 text-xs">{cartRules.length}</span>
         </button>
+        {marketDayEnabled ? (
+          <button
+            type="button"
+            onClick={() => setPromoTab("marketDay")}
+            className={cn(
+              "inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-extrabold transition",
+              promoTab === "marketDay"
+                ? ACTIVE_PROMO_TAB_CLASS
+                : "bg-amber-100 text-amber-900 hover:bg-amber-200",
+            )}
+          >
+            <Users className="h-4 w-4" />
+            מבצעי יום השוק
+            <span className="rounded-full bg-white/40 px-2 py-0.5 text-xs">{marketDayPromotions.length}</span>
+          </button>
+        ) : null}
       </div>
 
       <div className="mt-3 card p-0 overflow-hidden">
         <div className="p-6 sm:p-7" dir="rtl">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex items-start gap-4">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-amber-50 text-amber-700">
-              <BadgePercent className="h-6 w-6" />
-            </div>
+        {isMarketTab ? (
+          <div className="overflow-hidden rounded-[32px] border border-amber-100 bg-gradient-to-br from-amber-50 via-white to-sky-50/40 shadow-sm shadow-amber-100/40">
+            <div className="p-6 sm:p-7">
+              <div className="flex flex-col-reverse gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div className="min-w-0 flex-1 text-right">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-100 text-amber-700 shadow-sm">
+                      <Sparkles className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <div className="text-2xl font-extrabold leading-tight text-slate-950">מבצעי יום השוק</div>
+                      <div className="mt-1 text-sm font-semibold text-amber-800">{marketDayNextDateLabel}</div>
+                    </div>
+                  </div>
+                  <div className="mt-4 max-w-3xl text-sm leading-7 text-slate-600">
+                    כאן מרוכזים כל המבצעים שסומנו כיום השוק וכל הלקוחות שאליהם מתוכננת שליחת הודעת ה-WhatsApp. ההודעה תשלח רק ללקוחות שלא קיבלו עדיין הודעה.
+                  </div>
+                </div>
 
-            <div className="min-w-0 flex-1 text-right">
-              <div className="text-xl font-extrabold leading-tight">
-                ניהול מבצעים
-              </div>
-              <div className="mt-1 text-sm text-slate-600">
-                צפייה, סינון, הוספה, עריכה ומחיקה של מבצעי מוצרים, מבצעי קבוצות ומבצעי סל. מבצע בתוקף נקבע אוטומטית לפי התאריכים.
+                <div className="flex shrink-0 justify-start lg:min-w-[220px]">
+                  {isAdmin ? (
+                    <button
+                      className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 text-sm font-extrabold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                      onClick={() => setMarketDaySendConfirmOpen(true)}
+                      disabled={busy || marketDayRecipientSummary.sendable <= 0}
+                      title="שליחת תבנית WhatsApp מאושרת לכל הלקוחות ברשימה"
+                    >
+                      <Send className="h-4 w-4" />
+                      שלח הודעת יום השוק
+                    </button>
+                  ) : (
+                    <span className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-600 shadow-sm">צפייה בלבד</span>
+                  )}
+                </div>
               </div>
             </div>
           </div>
+        ) : (
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex items-start gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-amber-50 text-amber-700">
+                <BadgePercent className="h-6 w-6" />
+              </div>
 
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            {isCartTab ? (
-              <button
-                className={PROMO_ADD_BUTTON_CLASS}
-                onClick={() =>
-                  setCartModal({ open: true, mode: "create", rule: null })
-                }
-                disabled={busy}
-                title="מבצע לפי סכום סל: משלוח מוזל/חינם, מתנה, או מחיר מיוחד למוצר"
-              >
-                <Plus className="h-4 w-4" />
-                הוסף מבצע סל
-              </button>
-            ) : isGroupTab ? (
-              <button
-                className={PROMO_ADD_BUTTON_CLASS}
-                onClick={() =>
-                  setGroupModal({ open: true, mode: "create", promotion: null })
-                }
-                disabled={busy}
-                title="מבצע על קבוצת מוצרים עם שילובים בין מוצרים שונים"
-              >
-                <Plus className="h-4 w-4" />
-                הוסף מבצע קבוצתי
-              </button>
-            ) : (
-              <button
-                className={PROMO_ADD_BUTTON_CLASS}
-                onClick={() =>
-                  setModal({ open: true, mode: "create", promotion: null })
-                }
-                disabled={busy}
-              >
-                <Plus className="h-4 w-4" />
-                הוסף מבצע מוצר
-              </button>
-            )}
+              <div className="min-w-0 flex-1 text-right">
+                <div className="text-xl font-extrabold leading-tight">
+                  ניהול מבצעים
+                </div>
+                <div className="mt-1 text-sm text-slate-600">
+                  צפייה, סינון, הוספה, עריכה ומחיקה של מבצעי מוצרים, מבצעי קבוצות ומבצעי סל. מבצע בתוקף נקבע אוטומטית לפי התאריכים.
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              {isCartTab ? (
+                <button
+                  className={PROMO_ADD_BUTTON_CLASS}
+                  onClick={() =>
+                    setCartModal({ open: true, mode: "create", rule: null })
+                  }
+                  disabled={busy}
+                  title="מבצע לפי סכום סל: משלוח מוזל/חינם, מתנה, או מחיר מיוחד למוצר"
+                >
+                  <Plus className="h-4 w-4" />
+                  הוסף מבצע
+                </button>
+              ) : isGroupTab ? (
+                <button
+                  className={PROMO_ADD_BUTTON_CLASS}
+                  onClick={() =>
+                    setGroupModal({ open: true, mode: "create", promotion: null })
+                  }
+                  disabled={busy}
+                  title="מבצע על קבוצת מוצרים עם שילובים בין מוצרים שונים"
+                >
+                  <Plus className="h-4 w-4" />
+                  הוסף מבצע
+                </button>
+              ) : (
+                <button
+                  className={PROMO_ADD_BUTTON_CLASS}
+                  onClick={() =>
+                    setModal({ open: true, mode: "create", promotion: null })
+                  }
+                  disabled={busy}
+                >
+                  <Plus className="h-4 w-4" />
+                  הוסף מבצע
+                </button>
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
+        {!isMarketTab ? (
+        <>
         <div className="mt-5 grid gap-3 sm:grid-cols-3">
           <SummaryCard
             active={status === "active"}
@@ -934,6 +1665,7 @@ export function PromotionsPage({
         </div>
 
 
+        {!isMarketTab ? (
         <div className="mt-5 rounded-2xl bg-slate-200 p-4">
           <div className="grid gap-3 sm:grid-cols-12">
             {isProductsTab ? (
@@ -1025,6 +1757,7 @@ export function PromotionsPage({
             </div>
           ) : null}
         </div>
+        ) : null}
 
         <div className="mt-4 flex flex-wrap items-center justify-end gap-2" dir="rtl">
           <span className="pill bg-amber-50 text-amber-700">
@@ -1046,6 +1779,38 @@ export function PromotionsPage({
             </span>
           ) : null}
         </div>
+        </>
+        ) : null}
+
+        {isMarketTab ? (
+          <>
+            <MarketDayPromotionsPanel
+              items={marketDayPromotions}
+              loading={marketDayQuery.isLoading}
+              error={marketDayQuery.error}
+              busy={busy}
+              onShowOriginal={showOriginalPromotion}
+            />
+            <MarketDayRecipientsPanel
+              recipients={marketDayRecipients}
+              loading={marketDayRecipientsQuery.isLoading}
+              error={marketDayRecipientsQuery.error}
+              busy={busy}
+              draft={marketDayRecipientDraft}
+              setDraft={setMarketDayRecipientDraft}
+              editingId={marketDayEditingRecipientId}
+              edits={marketDayRecipientEdits}
+              setEditingId={setMarketDayEditingRecipientId}
+              setEdits={setMarketDayRecipientEdits}
+              onAdd={addMarketDayRecipient}
+              onSave={saveMarketDayRecipient}
+              onDelete={deleteMarketDayRecipient}
+              onSendRecipient={sendMarketDayTemplateToSingleRecipient}
+              sendingRecipientId={marketDaySendingRecipientId}
+              canEdit={isAdmin}
+            />
+          </>
+        ) : null}
 
         {isProductsTab ? (
           <div className="mt-3 overflow-hidden rounded-2xl border border-slate-100 bg-white">
@@ -1076,10 +1841,11 @@ export function PromotionsPage({
                       שגיאה בטעינת מבצעים: {String(promosQuery.error?.message || "")}
                     </td>
                   </tr>
-                ) : promotions.length ? (
-                  promotions.map((promo) => {
+                ) : displayPromotions.length ? (
+                  displayPromotions.map((promo) => {
+                    const isFocused = focusHighlight?.type === "product" && Number(focusHighlight?.id) === Number(promo.id);
                     return (
-                      <tr key={promo.id} className="hover:bg-slate-50">
+                      <tr key={promo.id} className={cn("hover:bg-slate-50", isFocused ? "bg-amber-100/70 ring-2 ring-amber-300" : "")}>
                         <td className="w-[25%] px-3 py-3 text-slate-900">
                           <div className="break-words font-bold leading-6">{promo.product_name || `#${promo.product_id}`}</div>
                           <div className="mt-1 break-words text-xs leading-5 text-slate-500" dir="ltr">
@@ -1185,15 +1951,16 @@ export function PromotionsPage({
                         שגיאה בטעינת מבצעי קבוצות: {String(groupPromosQuery.error?.message || "")}
                       </td>
                     </tr>
-                  ) : groupPromotions.length ? (
-                    groupPromotions.map((group) => {
+                  ) : displayGroupPromotions.length ? (
+                    displayGroupPromotions.map((group) => {
                       const isExpanded = expandedGroupIds.has(Number(group.id));
                       const countText = groupProductCountText(group);
+                      const isFocused = focusHighlight?.type === "group" && Number(focusHighlight?.id) === Number(group.id);
                       return (
                         <Fragment key={group.id}>
-                          <tr className="cursor-pointer hover:bg-slate-50" onClick={() => toggleGroupExpanded(group.id)}>
+                          <tr className={cn("cursor-pointer hover:bg-slate-50", isFocused ? "bg-amber-100/70 ring-2 ring-amber-300" : "")} onClick={() => toggleGroupExpanded(group.id)}>
                             <td className="w-[20%] px-3 py-3 text-slate-900">
-                              <div className="break-words font-bold">{group.emoji || "🏷️"} {group.title || `#${group.id}`}</div>
+                              <div className="break-words font-bold">{group.title || `#${group.id}`}</div>
                               {countText ? (
                                 <div className="mt-1 text-xs font-extrabold text-slate-500">{countText}</div>
                               ) : null}
@@ -1283,10 +2050,11 @@ export function PromotionsPage({
                       שגיאה בטעינת מבצעי סל: {String(cartRulesQuery.error?.message || "")}
                     </td>
                   </tr>
-                ) : sortedCartRules.length ? (
-                  sortedCartRules.map((rule) => {
+                ) : displayCartRules.length ? (
+                  displayCartRules.map((rule) => {
+                    const isFocused = focusHighlight?.type === "cart" && Number(focusHighlight?.id) === Number(rule.id);
                     return (
-                      <tr key={rule.id} className="hover:bg-slate-50">
+                      <tr key={rule.id} className={cn("hover:bg-slate-50", isFocused ? "bg-amber-100/70 ring-2 ring-amber-300" : "")}>
                         <td className="w-[24%] px-3 py-3 text-slate-700">
                           <div className="inline-flex max-w-full items-center justify-center gap-2 whitespace-nowrap" dir="rtl">
                             {cartRuleIcon(rule.rule_type)}
@@ -1342,6 +2110,24 @@ export function PromotionsPage({
         </div>
       </div>
 
+      <MarketDaySendConfirmModal
+        open={marketDaySendConfirmOpen}
+        busy={busy}
+        recipientsCount={marketDayRecipientSummary.sendable}
+        onCancel={() => setMarketDaySendConfirmOpen(false)}
+        onConfirm={confirmSendMarketDayTemplate}
+      />
+
+      <ConfirmDeleteModal
+        open={marketDayRecipientDeleteConfirm.open}
+        busy={busy}
+        title="מחיקת לקוח מרשימת יום השוק"
+        text={`להסיר את ${marketDayRecipientDeleteConfirm.recipient?.name || displayLocalPhone(marketDayRecipientDeleteConfirm.recipient?.phone) || "הלקוח"} מרשימת השליחה?`}
+        hint="הלקוח לא יקבל את הודעת יום השוק עד שיוסיפו אותו שוב לרשימה."
+        onCancel={() => setMarketDayRecipientDeleteConfirm({ open: false, recipient: null })}
+        onConfirm={confirmDeleteMarketDayRecipient}
+      />
+
       <PromotionModal
         open={modal.open}
         mode={modal.mode}
@@ -1349,6 +2135,7 @@ export function PromotionsPage({
         promotion={modal.promotion}
         onCancel={() => setModal({ open: false, mode: "create", promotion: null })}
         onSave={onSavePromotion}
+        marketDayEnabled={marketDayEnabled}
       />
 
       <CartPromotionModal
@@ -1358,6 +2145,7 @@ export function PromotionsPage({
         rule={cartModal.rule}
         onCancel={() => setCartModal({ open: false, mode: "create", rule: null })}
         onSave={onSaveCartRule}
+        marketDayEnabled={marketDayEnabled}
       />
 
       <ProductGroupPromotionModal
@@ -1367,6 +2155,7 @@ export function PromotionsPage({
         promotion={groupModal.promotion}
         onCancel={() => setGroupModal({ open: false, mode: "create", promotion: null })}
         onSave={onSaveGroupPromotion}
+        marketDayEnabled={marketDayEnabled}
       />
 
       <ConfirmDeleteModal

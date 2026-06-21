@@ -377,6 +377,7 @@ function normalizePromotion(raw) {
     created_at: raw.created_at ?? raw.createdAt ?? null,
     updated_at: raw.updated_at ?? raw.updatedAt ?? null,
     is_active: toBool(raw.is_active ?? raw.isActive, false),
+    is_market_day: toBool(raw.is_market_day ?? raw.isMarketDay, false),
     is_upcoming: toBool(raw.is_upcoming ?? raw.isUpcoming, false),
     is_expired: toBool(raw.is_expired ?? raw.isExpired, false),
     status: raw.status ?? "inactive",
@@ -441,8 +442,6 @@ function normalizeProductGroupPromotion(raw) {
     shop_id: Number(raw.shop_id ?? raw.shopId ?? getShopId()),
     title: raw.title ?? "",
     description: raw.description ?? null,
-    emoji: raw.emoji ?? raw.group_emoji ?? raw.groupEmoji ?? null,
-    emoji_custom: raw.emoji_custom ?? raw.emojiCustom ?? null,
     kind: raw.kind ?? "BUNDLE",
     bundle_buy_qty: toNumberOrNull(raw.bundle_buy_qty ?? raw.bundleBuyQty) ?? 2,
     bundle_pay_price: toNumberOrNull(raw.bundle_pay_price ?? raw.bundlePayPrice) ?? 0,
@@ -462,11 +461,11 @@ function normalizeProductGroupPromotion(raw) {
       price: toNumberOrNull(p.price),
       category: p.category ?? null,
       sub_category: p.sub_category ?? p.subCategory ?? null,
-      emoji: p.emoji ?? p.product_emoji ?? p.productEmoji ?? null,
     })).filter((p) => Number.isInteger(p.id) && p.id > 0),
     product_ids: Array.isArray(raw.product_ids ?? raw.productIds)
       ? (raw.product_ids ?? raw.productIds).map(Number).filter((x) => Number.isInteger(x) && x > 0)
       : products.map((p) => Number(p.id ?? p.product_id ?? p.productId)).filter((x) => Number.isInteger(x) && x > 0),
+    is_market_day: toBool(raw.is_market_day ?? raw.isMarketDay, false),
     is_currently_active: toBool(
       raw.is_currently_active ?? raw.isCurrentlyActive,
       false,
@@ -553,6 +552,7 @@ function normalizeCartPromotionRule(raw) {
     priority: toNumberOrNull(raw.priority) ?? 100,
     is_active: toBool(raw.is_active ?? raw.isActive, true),
     notify_customer: toBool(raw.notify_customer ?? raw.notifyCustomer, true),
+    is_market_day: toBool(raw.is_market_day ?? raw.isMarketDay, false),
     start_at: raw.start_at ?? raw.startAt ?? null,
     end_at: raw.end_at ?? raw.endAt ?? null,
     source: raw.source ?? null,
@@ -608,6 +608,109 @@ export async function deleteCartPromotionRule(id) {
   });
 }
 
+
+function normalizeMarketDayPromotion(raw) {
+  return {
+    id: Number(raw.id),
+    type: raw.type || "product",
+    shop_id: Number(raw.shop_id ?? raw.shopId ?? getShopId()),
+    title: raw.title ?? raw.product_name ?? raw.reward_product_name ?? `#${raw.id}`,
+    subtitle: raw.subtitle ?? "",
+    value_text: raw.value_text ?? raw.valueText ?? "",
+    description: raw.description ?? null,
+    status: raw.status ?? "inactive",
+    start_at: raw.start_at ?? raw.startAt ?? null,
+    end_at: raw.end_at ?? raw.endAt ?? null,
+    product_id: toNumberOrNull(raw.product_id ?? raw.productId),
+    product_name: raw.product_name ?? raw.productName ?? null,
+    product_price: toNumberOrNull(raw.product_price ?? raw.productPrice),
+    rule_type: raw.rule_type ?? raw.ruleType ?? null,
+    products: Array.isArray(raw.products) ? raw.products : [],
+    raw,
+  };
+}
+
+function normalizeMarketDayRecipient(raw) {
+  return {
+    id: Number(raw.id),
+    shop_id: Number(raw.shop_id ?? raw.shopId ?? getShopId()),
+    customer_id: raw.customer_id == null ? null : Number(raw.customer_id ?? raw.customerId),
+    name: raw.name ?? "",
+    phone: raw.phone ?? "",
+    is_active: toBool(raw.is_active ?? raw.isActive, true),
+    orders_count: Number(raw.orders_count ?? raw.ordersCount ?? 0),
+    last_order_at: raw.last_order_at ?? raw.lastOrderAt ?? null,
+    source: raw.source ?? "manual",
+    last_send_status: raw.last_send_status ?? raw.lastSendStatus ?? null,
+    last_send_at: raw.last_send_at ?? raw.lastSendAt ?? null,
+    last_send_attempt_at: raw.last_send_attempt_at ?? raw.lastSendAttemptAt ?? null,
+    last_send_error: raw.last_send_error ?? raw.lastSendError ?? null,
+    created_at: raw.created_at ?? raw.createdAt ?? null,
+    updated_at: raw.updated_at ?? raw.updatedAt ?? null,
+  };
+}
+
+export async function getMarketDayPromotions() {
+  const res = await fetchJSON(`/api/dashboard/promotions/market-day`);
+  const list = res.items ?? [];
+  return {
+    ...res,
+    next_market_day: res.next_market_day ?? res.nextMarketDay ?? null,
+    items: Array.isArray(list) ? list.map(normalizeMarketDayPromotion) : [],
+    product_promotions: Array.isArray(res.product_promotions)
+      ? res.product_promotions.map(normalizeMarketDayPromotion)
+      : [],
+    group_promotions: Array.isArray(res.group_promotions)
+      ? res.group_promotions.map(normalizeMarketDayPromotion)
+      : [],
+    cart_promotions: Array.isArray(res.cart_promotions)
+      ? res.cart_promotions.map(normalizeMarketDayPromotion)
+      : [],
+  };
+}
+
+export async function getMarketDayRecipients() {
+  const res = await fetchJSON(`/api/dashboard/promotions/market-day/recipients`);
+  const list = res.recipients ?? res.items ?? [];
+  return {
+    ...res,
+    recipients: Array.isArray(list) ? list.map(normalizeMarketDayRecipient) : [],
+  };
+}
+
+export async function createMarketDayRecipient(payload) {
+  return await fetchJSON(`/api/dashboard/promotions/market-day/recipients`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateMarketDayRecipient(id, payload) {
+  return await fetchJSON(`/api/dashboard/promotions/market-day/recipients/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteMarketDayRecipient(id) {
+  return await fetchJSON(`/api/dashboard/promotions/market-day/recipients/${id}`, {
+    method: "DELETE",
+  });
+}
+
+export async function sendMarketDayTemplate() {
+  return await fetchJSON(`/api/dashboard/promotions/market-day/send-template`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}
+
+export async function sendMarketDayTemplateToRecipient(id) {
+  return await fetchJSON(`/api/dashboard/promotions/market-day/recipients/${id}/send-template`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}
 
 function normalizeStaffWhatsappRecipient(raw) {
   return {
@@ -704,6 +807,10 @@ function normalizeBusinessSettings(raw) {
             info.pre_cart_reminder_minutes ??
             info.preCartReminderMinutes,
         ) ?? 10,
+      market_day_promotions_enabled: toBool(
+        info.market_day_promotions_enabled ?? info.marketDayPromotionsEnabled,
+        false,
+      ),
       stock_release_after_inactive_minutes:
         toNumberOrNull(
           info.stock_release_after_inactive_minutes ??

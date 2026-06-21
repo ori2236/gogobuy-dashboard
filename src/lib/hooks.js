@@ -33,6 +33,13 @@ import {
   updateStaffWhatsappRecipient,
   deleteStaffWhatsappRecipient,
   sendStaffWhatsappRecipientTest,
+  getMarketDayPromotions,
+  getMarketDayRecipients,
+  createMarketDayRecipient,
+  updateMarketDayRecipient,
+  deleteMarketDayRecipient,
+  sendMarketDayTemplate,
+  sendMarketDayTemplateToRecipient,
   getShopId,
 } from "./api";
 
@@ -197,6 +204,7 @@ export function usePromotions({
 
 function invalidateAfterPromotionChange(qc) {
   qc.invalidateQueries({ queryKey: ["promotions"] });
+  qc.invalidateQueries({ queryKey: ["marketDayPromotions"] });
   qc.invalidateQueries({ queryKey: ["pickerOrders"] });
 }
 
@@ -247,6 +255,7 @@ export function useProductGroupPromotions({ status, q, sort_by, sort_dir } = {})
 
 function invalidateAfterProductGroupPromotionChange(qc) {
   qc.invalidateQueries({ queryKey: ["productGroupPromotions"] });
+  qc.invalidateQueries({ queryKey: ["marketDayPromotions"] });
   qc.invalidateQueries({ queryKey: ["pickerOrders"] });
 }
 
@@ -293,6 +302,7 @@ export function useCartPromotionRules({ status, q } = {}) {
 
 function invalidateAfterCartPromotionRuleChange(qc) {
   qc.invalidateQueries({ queryKey: ["cartPromotionRules"] });
+  qc.invalidateQueries({ queryKey: ["marketDayPromotions"] });
   qc.invalidateQueries({ queryKey: ["pickerOrders"] });
 }
 
@@ -319,6 +329,68 @@ export function useDeleteCartPromotionRule() {
     onSuccess: () => invalidateAfterCartPromotionRuleChange(qc),
   });
 }
+export function useMarketDayPromotions({ enabled = true } = {}) {
+  return useQuery({
+    queryKey: ["marketDayPromotions", getShopId()],
+    queryFn: () => getMarketDayPromotions(),
+    enabled: Boolean(enabled),
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    staleTime: 30_000,
+  });
+}
+
+export function useMarketDayRecipients({ enabled = true } = {}) {
+  return useQuery({
+    queryKey: ["marketDayRecipients", getShopId()],
+    queryFn: () => getMarketDayRecipients(),
+    enabled: Boolean(enabled),
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    staleTime: 30_000,
+  });
+}
+
+function invalidateMarketDayRecipients(qc) {
+  qc.invalidateQueries({ queryKey: ["marketDayRecipients"] });
+}
+
+export function useCreateMarketDayRecipient() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload) => createMarketDayRecipient(payload),
+    onSuccess: () => invalidateMarketDayRecipients(qc),
+  });
+}
+
+export function useUpdateMarketDayRecipient() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }) => updateMarketDayRecipient(id, payload),
+    onSuccess: () => invalidateMarketDayRecipients(qc),
+  });
+}
+
+export function useDeleteMarketDayRecipient() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id) => deleteMarketDayRecipient(id),
+    onSuccess: () => invalidateMarketDayRecipients(qc),
+  });
+}
+
+export function useSendMarketDayTemplate() {
+  return useMutation({
+    mutationFn: () => sendMarketDayTemplate(),
+  });
+}
+
+export function useSendMarketDayTemplateToRecipient() {
+  return useMutation({
+    mutationFn: (id) => sendMarketDayTemplateToRecipient(id),
+  });
+}
+
 
 export function useBusinessSettings() {
   return useQuery({

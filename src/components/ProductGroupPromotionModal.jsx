@@ -23,6 +23,19 @@ function todayDateLocal() {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+const MARKET_DAY_DESCRIPTION = "מבצע יום השוק";
+
+function nearestTuesdayDateLocal() {
+  const d = new Date();
+  const daysUntilTuesday = (2 - d.getDay() + 7) % 7;
+  d.setDate(d.getDate() + daysUntilTuesday);
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function isExistingMarketDay(promotion) {
+  return Boolean(promotion?.is_market_day) || String(promotion?.description || "").trim() === MARKET_DAY_DESCRIPTION;
+}
+
 function splitDateTime(value) {
   if (!value) return { date: "", time: "00:00" };
 
@@ -51,30 +64,6 @@ function productLabel(product) {
   return product.name || `#${product.id}`;
 }
 
-function normalizeEmoji(value) {
-  const s = String(value || "").trim();
-  return s ? Array.from(s)[0] : "";
-}
-
-function majorityProductEmoji(products) {
-  const counts = new Map();
-  for (const product of products || []) {
-    const emoji = normalizeEmoji(product?.emoji || product?.product_emoji || product?.subcategory_emoji);
-    if (!emoji) continue;
-    counts.set(emoji, (counts.get(emoji) || 0) + 1);
-  }
-
-  let best = "";
-  let bestCount = 0;
-  for (const [emoji, count] of counts.entries()) {
-    if (count > bestCount) {
-      best = emoji;
-      bestCount = count;
-    }
-  }
-  return best || "🏷️";
-}
-
 function numberValue(value) {
   const n = Number(String(value).trim());
   return Number.isFinite(n) ? n : null;
@@ -95,7 +84,7 @@ function InputShell({ label, error, children, className = "" }) {
   );
 }
 
-export function ProductGroupPromotionModal({ open, mode, busy, promotion, onCancel, onSave }) {
+export function ProductGroupPromotionModal({ open, mode, busy, promotion, onCancel, onSave, marketDayEnabled = false }) {
   const isEdit = mode === "edit";
   const productSearchBoxRef = useRef(null);
 
@@ -106,9 +95,9 @@ export function ProductGroupPromotionModal({ open, mode, busy, promotion, onCanc
   const [bundleBuyQty, setBundleBuyQty] = useState("2");
   const [bundlePayPrice, setBundlePayPrice] = useState("");
   const [maxDiscountedQty, setMaxDiscountedQty] = useState("");
-  const [emoji, setEmoji] = useState("🏷️");
-  const [emojiTouched, setEmojiTouched] = useState(false);
+  const [priority, setPriority] = useState("100");
   const [description, setDescription] = useState("");
+  const [isMarketDay, setIsMarketDay] = useState(false);
   const [startDate, setStartDate] = useState(todayDateLocal());
   const [startTime, setStartTime] = useState("00:00");
   const [endDate, setEndDate] = useState("");
@@ -142,8 +131,6 @@ export function ProductGroupPromotionModal({ open, mode, busy, promotion, onCanc
     return all.slice(0, 10);
   }, [productQuery.data, selectedIds]);
 
-  const defaultEmoji = useMemo(() => majorityProductEmoji(selectedProducts), [selectedProducts]);
-
   useEffect(() => {
     if (!open) return;
     setFieldErrors({});
@@ -159,12 +146,14 @@ export function ProductGroupPromotionModal({ open, mode, busy, promotion, onCanc
       setBundleBuyQty(String(promotion.bundle_buy_qty || 2));
       setBundlePayPrice(promotion.bundle_pay_price == null ? "" : String(promotion.bundle_pay_price));
       setMaxDiscountedQty(promotion.max_discounted_qty == null ? "" : String(promotion.max_discounted_qty));
-      setEmoji(normalizeEmoji(promotion.emoji) || majorityProductEmoji(Array.isArray(promotion.products) ? promotion.products : []));
-      setEmojiTouched(Boolean(normalizeEmoji(promotion.emoji_custom)));
-      setDescription(promotion.description || "");
-      setStartDate(start.date || todayDateLocal());
+      setPriority(String(promotion.priority || 100));
+      const marketDay = isExistingMarketDay(promotion);
+      const marketDate = marketDay ? (start.date || nearestTuesdayDateLocal()) : null;
+      setIsMarketDay(marketDay);
+      setDescription(marketDay ? MARKET_DAY_DESCRIPTION : (promotion.description || ""));
+      setStartDate(marketDay ? marketDate : (start.date || todayDateLocal()));
       setStartTime("00:00");
-      setEndDate(end.date || "");
+      setEndDate(marketDay ? marketDate : (end.date || ""));
       setEndTime("23:59:59");
     } else {
       setTitle("");
@@ -172,8 +161,8 @@ export function ProductGroupPromotionModal({ open, mode, busy, promotion, onCanc
       setBundleBuyQty("2");
       setBundlePayPrice("");
       setMaxDiscountedQty("");
-      setEmoji("🏷️");
-      setEmojiTouched(false);
+      setPriority("100");
+      setIsMarketDay(false);
       setDescription("");
       setStartDate(todayDateLocal());
       setStartTime("00:00");
@@ -181,11 +170,6 @@ export function ProductGroupPromotionModal({ open, mode, busy, promotion, onCanc
       setEndTime("23:59:59");
     }
   }, [open, isEdit, promotion]);
-
-  useEffect(() => {
-    if (!open || emojiTouched) return;
-    setEmoji(defaultEmoji);
-  }, [open, emojiTouched, defaultEmoji]);
 
   useEffect(() => {
     if (!open || !productSearchFocused) return undefined;
@@ -204,6 +188,19 @@ export function ProductGroupPromotionModal({ open, mode, busy, promotion, onCanc
       document.removeEventListener("touchstart", handlePointerDown);
     };
   }, [open, productSearchFocused]);
+
+  useEffect(() => {
+    if (!open || !marketDayEnabled || !isMarketDay) return;
+    const existingDate = isEdit && isExistingMarketDay(promotion)
+      ? splitDateTime(promotion?.start_at).date
+      : "";
+    const marketDate = existingDate || nearestTuesdayDateLocal();
+    setDescription(MARKET_DAY_DESCRIPTION);
+    setStartDate(marketDate);
+    setStartTime("00:00");
+    setEndDate(marketDate);
+    setEndTime("23:59:59");
+  }, [open, marketDayEnabled, isMarketDay, isEdit, promotion]);
 
   if (!open) return null;
 
@@ -237,7 +234,6 @@ export function ProductGroupPromotionModal({ open, mode, busy, promotion, onCanc
     if (!selectedProducts.length) return;
     if (selectedProducts.length > 3 && !window.confirm("לנקות את כל המוצרים שנבחרו למבצע?")) return;
     setSelectedProducts([]);
-    if (!emojiTouched) setEmoji("🏷️");
     setFieldErrors((prev) => ({ ...prev, product_ids: "צריך לבחור לפחות 2 מוצרים בקבוצה" }));
   }
 
@@ -260,10 +256,11 @@ export function ProductGroupPromotionModal({ open, mode, busy, promotion, onCanc
 
     if (String(maxDiscountedQty || "").trim()) {
       const maxQty = numberValue(maxDiscountedQty);
-      if (maxQty === null || maxQty <= 0 || !Number.isInteger(maxQty)) {
-        errors.max_discounted_qty = "מקסימום שימושים חייב להיות מספר שלם גדול מ-0";
-      }
+      if (maxQty === null || maxQty <= 0) errors.max_discounted_qty = "מקסימום במבצע חייב להיות גדול מ-0";
     }
+
+    const pri = Number(priority);
+    if (!Number.isInteger(pri) || pri < 1) errors.priority = "עדיפות חייבת להיות מספר שלם חיובי";
 
     return errors;
   }
@@ -281,12 +278,14 @@ export function ProductGroupPromotionModal({ open, mode, busy, promotion, onCanc
       bundle_buy_qty: Number(bundleBuyQty),
       bundle_pay_price: Number(bundlePayPrice),
       max_discounted_qty: String(maxDiscountedQty || "").trim() ? Number(maxDiscountedQty) : null,
-      emoji: normalizeEmoji(emoji) || null,
+      priority: Number(priority || 100),
       is_active: true,
-      description: description.trim() || null,
+      description: marketDayEnabled && isMarketDay ? MARKET_DAY_DESCRIPTION : (description.trim() || null),
       start_at: combineDateTime(startDate, startTime),
       end_at: endDate ? combineDateTime(endDate, endTime) : null,
     };
+
+    if (marketDayEnabled) payload.is_market_day = isMarketDay;
 
     onSave?.(payload);
   }
@@ -451,34 +450,6 @@ export function ProductGroupPromotionModal({ open, mode, busy, promotion, onCanc
                 ) : null}
               </InputShell>
 
-              <InputShell label="אמוגי למבצע" error="" className="sm:col-span-4">
-                <div className="mt-2 flex gap-2">
-                  <input
-                    className="w-20 rounded-2xl bg-white px-3 py-2 text-center text-xl shadow-sm outline-none focus:ring-2 focus:ring-slate-200"
-                    value={emoji}
-                    onChange={(e) => {
-                      setEmoji(normalizeEmoji(e.target.value));
-                      setEmojiTouched(true);
-                    }}
-                    placeholder="🏷️"
-                    maxLength={4}
-                  />
-                  <button
-                    type="button"
-                    className="rounded-2xl bg-white px-4 text-xs font-extrabold text-slate-700 shadow-sm transition hover:bg-slate-50"
-                    onClick={() => {
-                      setEmoji(defaultEmoji);
-                      setEmojiTouched(false);
-                    }}
-                  >
-                    אוטומטי: {defaultEmoji}
-                  </button>
-                </div>
-                <div className="mt-1 text-xs text-slate-500">
-                  אם לא תבחר אמוגי, המערכת תבחר לפי רוב האמוג׳ים של המוצרים בקבוצה.
-                </div>
-              </InputShell>
-
               <InputShell label="כמות לשילוב" error={fieldErrors.bundle_buy_qty} className="sm:col-span-4">
                 <input
                   className="mt-2 w-full rounded-2xl bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-slate-200"
@@ -504,40 +475,74 @@ export function ProductGroupPromotionModal({ open, mode, busy, promotion, onCanc
                   className="mt-2 w-full rounded-2xl bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-slate-200"
                   value={maxDiscountedQty}
                   onChange={(e) => setMaxDiscountedQty(e.target.value)}
-                  inputMode="numeric"
+                  inputMode="decimal"
                   placeholder="ריק = ללא הגבלה"
                 />
-                <div className="mt-1 text-xs text-slate-500">
-                  במבצע 2 יח׳, 1 אומר פעם אחת בלבד; 2 אומר עד שני זוגות במבצע.
-                </div>
 
               </InputShell>
 
-              <InputShell label="תאריך התחלה" error={fieldErrors.start_at} className="sm:col-span-4">
+              <InputShell label="עדיפות" error={fieldErrors.priority} className="sm:col-span-3">
                 <input
                   className="mt-2 w-full rounded-2xl bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-slate-200"
+                  value={priority}
+                  onChange={(e) => setPriority(e.target.value)}
+                  inputMode="numeric"
+                  placeholder="100"
+                />
+                <div className="mt-1 text-xs text-slate-500">מספר נמוך יותר מחושב קודם.</div>
+              </InputShell>
+
+              {marketDayEnabled ? (
+              <div className="sm:col-span-12 rounded-2xl border border-amber-200 bg-amber-50 p-3">
+                <label className="flex cursor-pointer items-start gap-3 text-sm font-extrabold text-amber-950">
+                  <input
+                    type="checkbox"
+                    className="mt-1 h-4 w-4 rounded border-amber-300"
+                    checked={isMarketDay}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setIsMarketDay(checked);
+                      if (!checked) setDescription("");
+                    }}
+                  />
+                  <span>
+                    מבצע יום השוק
+                    <span className="mt-1 block text-xs font-semibold text-amber-800">
+                      התיאור והתאריכים יינעלו אוטומטית ליום שלישי הקרוב.
+                    </span>
+                  </span>
+                </label>
+              </div>
+              ) : null}
+
+              <InputShell label="תאריך התחלה" error={fieldErrors.start_at} className="sm:col-span-4">
+                <input
+                  className="mt-2 w-full rounded-2xl bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-slate-200 disabled:bg-slate-100 disabled:text-slate-500"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
                   type="date"
+                  disabled={marketDayEnabled && isMarketDay}
                 />
               </InputShell>
 
               <InputShell label="תאריך סיום" error={fieldErrors.end_at} className="sm:col-span-4">
                 <input
-                  className="mt-2 w-full rounded-2xl bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-slate-200"
+                  className="mt-2 w-full rounded-2xl bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-slate-200 disabled:bg-slate-100 disabled:text-slate-500"
                   value={endDate}
                   onChange={(e) => {
                     setEndDate(e.target.value);
                     if (e.target.value && !endTime) setEndTime("23:59:59");
                   }}
                   type="date"
+                  disabled={marketDayEnabled && isMarketDay}
                 />
               </InputShell>
 
               <InputShell label="תיאור" error="" className="sm:col-span-12">
                 <textarea
-                  className="mt-2 min-h-20 w-full rounded-2xl bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-slate-200"
+                  className="mt-2 min-h-20 w-full rounded-2xl bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-slate-200 disabled:bg-slate-100 disabled:text-slate-500"
                   value={description}
+                  disabled={marketDayEnabled && isMarketDay}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="לדוגמה: כל טעמי בן אנד גריס משתתפים במבצע ואפשר לשלב ביניהם"
                 />
@@ -552,7 +557,7 @@ export function ProductGroupPromotionModal({ open, mode, busy, promotion, onCanc
 
             <button className="btn-success" onClick={submit} disabled={busy}>
               {busy ? <RefreshCw className="h-4 w-4 animate-spin" /> : null}
-              {isEdit ? "שמור שינויים" : "הוסף מבצע קבוצתי"}
+              {isEdit ? "שמור שינויים" : "הוסף מבצע"}
             </button>
           </div>
         </div>
